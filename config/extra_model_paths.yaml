@@ -23,3 +23,7 @@
     model_patches: model_patches/
     audio_encoders: audio_encoders/
     LLM: llm/
+    background_removal: background_removal/
+    frame_interpolation: frame_interpolation/
+    mmaudio: mmaudio/
+    geometry_estimation: geometry_estimation/
