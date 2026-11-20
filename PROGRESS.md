@@ -48,3 +48,11 @@
 | Async offload, dynamic VRAM, cudaMallocAsync, RAM-кэш | быстрее выгрузка/подгрузка | нет | по умолчанию в ComfyUI |
 | --fast fp16_accumulation | +10–20% | минимальное/заметное | только «Черновик» |
 | Ускоряющие LoRA (lightx2v, Hyper, DMD2 и т.п.) | 3–8× | заметное | только «Черновик» (этап 2–3) |
+
+## Этап 2 — выбор моделей (в процессе)
+- 2026-11-20: исследование 4 агентами → `model-picker/data/part_*.json`, сборка `python model-picker/build.py` → `data.js`. Страница: `model-picker/index.html` (22 категории, 103 карточки).
+- Ключевое на ноябрь 2026: фото — FLUX.3 Klein (gated BFL), Qwen-Image 2.1, Z-Image Turbo, Krea 2; аниме — Anima 2B / Illustrious; видео — Wan 2.2 (Apache, надёжно), MiniMax-H3 (тяжёлая), LTX-2.5 (gated); 3D — Pixal3D/TRELLIS.2 нативно в ComfyUI.
+- Убрана карточка MMD Dance LoRA из 18+ (риск юного облика).
+- ВНИМАНИЕ при загрузке: FLUX.3 Klein в данных ссылается на зеркало ml-resources — качать с официального репо BFL после принятия лицензии на HF. Civitai-файлы требуют API-ключ.
+- Превью нет у служебных категорий (детекторы, LLM, апскейлеры) — это нормально.
+- Ждём выбор пользователя.
