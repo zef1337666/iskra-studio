@@ -1,0 +1,16 @@
+﻿models/
+output/
+input/
+temp/
+venv/
+.venv/
+python/
+node_modules/
+*.safetensors
+*.ckpt
+*.gguf
+*.pt
+*.pth
+*.bin
+.env
+__pycache__/
