@@ -1,0 +1,141 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "krea2_turbo_nvfp4.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Модель Krea 2"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen3vl_4b_int8_convrot.safetensors",
+   "type": "krea2",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "Текстовый энкодер"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "qwen_image_vae.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "4": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "lora_name": "krea2_softwatercolor.safetensors",
+   "strength_model": 1.0
+  },
+  "_meta": {
+   "title": "LoRA krea2_softwatercolor.safetensors"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "A cozy coffee shop, watercolor"
+  },
+  "_meta": {
+   "title": "Промпт"
+  }
+ },
+ "6": {
+  "class_type": "ConditioningZeroOut",
+  "inputs": {
+   "conditioning": [
+    "5",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Пустой негатив"
+  }
+ },
+ "7": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 1024,
+   "height": 1024,
+   "batch_size": 1
+  },
+  "_meta": {
+   "title": "Размер"
+  }
+ },
+ "8": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "4",
+    0
+   ],
+   "positive": [
+    "5",
+    0
+   ],
+   "negative": [
+    "6",
+    0
+   ],
+   "latent_image": [
+    "7",
+    0
+   ],
+   "seed": 1,
+   "steps": 8,
+   "cfg": 1.0,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Генерация"
+  }
+ },
+ "9": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "8",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Декодирование"
+  }
+ },
+ "10": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "9",
+    0
+   ],
+   "filename_prefix": "studio/krea2"
+  },
+  "_meta": {
+   "title": "Сохранить"
+  }
+ }
+}

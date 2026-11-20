@@ -1,0 +1,162 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "flux3-image-klein-nvfp4.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Модель Klein"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen3vl_4b_int8_convrot.safetensors",
+   "type": "flux3",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "Текстовый энкодер"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "flux2-vae.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "4": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "input.png"
+  },
+  "_meta": {
+   "title": "Исходник"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "Show a wider view of <ref_image_0>: extend the scene beyond the original frame on the left and right, continuing the surroundings naturally. Keep every element of the original image identical, same lighting, style and perspective. "
+  },
+  "_meta": {
+   "title": "Инструкция"
+  }
+ },
+ "6": {
+  "class_type": "ConditioningZeroOut",
+  "inputs": {
+   "conditioning": [
+    "5",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Пустой негатив"
+  }
+ },
+ "7": {
+  "class_type": "ReferenceMultiLatent",
+  "inputs": {
+   "positive": [
+    "5",
+    0
+   ],
+   "negative": [
+    "6",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ],
+   "resolution": "resize",
+   "resolution.megapixels": 1.0,
+   "images.image0": [
+    "4",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Референс"
+  }
+ },
+ "8": {
+  "class_type": "EmptyFlux2LatentImage",
+  "inputs": {
+   "width": 1424,
+   "height": 944,
+   "batch_size": 1
+  },
+  "_meta": {
+   "title": "Новый размер кадра"
+  }
+ },
+ "9": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "7",
+    0
+   ],
+   "negative": [
+    "7",
+    1
+   ],
+   "latent_image": [
+    "8",
+    0
+   ],
+   "seed": 1,
+   "steps": 8,
+   "cfg": 1.0,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Дорисовка"
+  }
+ },
+ "10": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "9",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Декодирование"
+  }
+ },
+ "11": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "10",
+    0
+   ],
+   "filename_prefix": "studio/outpaint"
+  },
+  "_meta": {
+   "title": "Сохранить"
+  }
+ }
+}

@@ -1,0 +1,269 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "One obsession_V25 Retro.safetensors"
+  },
+  "_meta": {
+   "title": "Чекпоинт"
+  }
+ },
+ "2": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "1",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  },
+  "_meta": {
+   "title": "Clip skip 2"
+  }
+ },
+ "3": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "masterpiece, best quality, 1woman, adult"
+  },
+  "_meta": {
+   "title": "Промпт"
+  }
+ },
+ "4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "worst quality, low quality, bad anatomy, bad hands, extra digits, watermark, signature, blurry"
+  },
+  "_meta": {
+   "title": "Негатив"
+  }
+ },
+ "5": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 832,
+   "height": 1216,
+   "batch_size": 1
+  },
+  "_meta": {
+   "title": "Размер"
+  }
+ },
+ "6": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "3",
+    0
+   ],
+   "negative": [
+    "4",
+    0
+   ],
+   "latent_image": [
+    "5",
+    0
+   ],
+   "seed": 1,
+   "steps": 28,
+   "cfg": 5.0,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Генерация"
+  }
+ },
+ "7": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "6",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Декодирование"
+  }
+ },
+ "8": {
+  "class_type": "ImageScaleBy",
+  "inputs": {
+   "image": [
+    "7",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "scale_by": 1.5
+  },
+  "_meta": {
+   "title": "Hires: увеличение"
+  }
+ },
+ "9": {
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "8",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Hires: кодирование"
+  }
+ },
+ "10": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "3",
+    0
+   ],
+   "negative": [
+    "4",
+    0
+   ],
+   "latent_image": [
+    "9",
+    0
+   ],
+   "seed": 1,
+   "steps": 14,
+   "cfg": 5.0,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.4
+  },
+  "_meta": {
+   "title": "Hires: дорисовка"
+  }
+ },
+ "11": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "10",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Hires: декодирование"
+  }
+ },
+ "12": {
+  "class_type": "UltralyticsDetectorProvider",
+  "inputs": {
+   "model_name": "bbox/face_yolov8m.pt"
+  },
+  "_meta": {
+   "title": "Детектор лиц"
+  }
+ },
+ "13": {
+  "class_type": "FaceDetailer",
+  "inputs": {
+   "image": [
+    "11",
+    0
+   ],
+   "model": [
+    "1",
+    0
+   ],
+   "clip": [
+    "2",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "positive": [
+    "3",
+    0
+   ],
+   "negative": [
+    "4",
+    0
+   ],
+   "bbox_detector": [
+    "12",
+    0
+   ],
+   "guide_size": 768,
+   "guide_size_for": true,
+   "max_size": 1024,
+   "seed": 1,
+   "steps": 16,
+   "cfg": 5.0,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.35,
+   "feather": 8,
+   "noise_mask": true,
+   "force_inpaint": true,
+   "bbox_threshold": 0.5,
+   "bbox_dilation": 12,
+   "bbox_crop_factor": 3.0,
+   "sam_detection_hint": "center-1",
+   "sam_dilation": 0,
+   "sam_threshold": 0.93,
+   "sam_bbox_expansion": 0,
+   "sam_mask_hint_threshold": 0.7,
+   "sam_mask_hint_use_negative": "False",
+   "drop_size": 40,
+   "wildcard": "",
+   "cycle": 1,
+   "inpaint_model": false,
+   "noise_mask_feather": 20,
+   "tiled_encode": false,
+   "tiled_decode": false
+  },
+  "_meta": {
+   "title": "Детейлер лица"
+  }
+ },
+ "14": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "13",
+    0
+   ],
+   "filename_prefix": "studio/sdxl"
+  },
+  "_meta": {
+   "title": "Сохранить"
+  }
+ }
+}

@@ -1,0 +1,151 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "flux3-image-klein-nvfp4.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Модель Klein"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen3vl_4b_int8_convrot.safetensors",
+   "type": "flux3",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "Текстовый энкодер"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "flux2-vae.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "Retouch <ref_image_0> like a professional photo retoucher: fix the face and hands. Remove blotches, color stains, noise, smeared or painted-looking textures and any distortions; make the skin look like a natural high-quality photograph with fine pores; clear symmetric eyes; correct hand anatomy with five fingers. Keep the same person, identity, expression, pose, framing and background."
+  },
+  "_meta": {
+   "title": "Инструкция"
+  }
+ },
+ "5": {
+  "class_type": "ConditioningZeroOut",
+  "inputs": {
+   "conditioning": [
+    "4",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Пустой негатив"
+  }
+ },
+ "6": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "input.png"
+  },
+  "_meta": {
+   "title": "Референс 1"
+  }
+ },
+ "7": {
+  "class_type": "ReferenceMultiLatent",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ],
+   "resolution": "resize",
+   "resolution.megapixels": 1.0,
+   "images.image0": [
+    "6",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Референсы"
+  }
+ },
+ "8": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "7",
+    0
+   ],
+   "negative": [
+    "7",
+    1
+   ],
+   "latent_image": [
+    "7",
+    2
+   ],
+   "seed": 1,
+   "steps": 8,
+   "cfg": 1.0,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Правка"
+  }
+ },
+ "9": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "8",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Декодирование"
+  }
+ },
+ "10": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "9",
+    0
+   ],
+   "filename_prefix": "studio/detail"
+  },
+  "_meta": {
+   "title": "Сохранить"
+  }
+ }
+}

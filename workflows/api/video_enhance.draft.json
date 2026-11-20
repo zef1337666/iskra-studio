@@ -1,0 +1,81 @@
+{
+ "1": {
+  "class_type": "LoadVideo",
+  "inputs": {
+   "file": "input.mp4"
+  },
+  "_meta": {
+   "title": "Видео"
+  }
+ },
+ "2": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "1",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Кадры и звук"
+  }
+ },
+ "3": {
+  "class_type": "FrameInterpolationModelLoader",
+  "inputs": {
+   "model_name": "rife_v4.26.safetensors"
+  },
+  "_meta": {
+   "title": "RIFE"
+  }
+ },
+ "4": {
+  "class_type": "FrameInterpolate",
+  "inputs": {
+   "interp_model": [
+    "3",
+    0
+   ],
+   "images": [
+    "2",
+    0
+   ],
+   "multiplier": 2
+  },
+  "_meta": {
+   "title": "Плавность (RIFE)"
+  }
+ },
+ "5": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "4",
+    0
+   ],
+   "fps": 32.0,
+   "audio": [
+    "2",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Сборка"
+  }
+ },
+ "6": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "5",
+    0
+   ],
+   "filename_prefix": "studio/enhanced",
+   "format": "auto",
+   "codec": "auto"
+  },
+  "_meta": {
+   "title": "Сохранить видео"
+  }
+ }
+}

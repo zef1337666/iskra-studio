@@ -1,0 +1,128 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "anima-turbo-v1.1.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Модель Anima"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen_3_06b_base.safetensors",
+   "type": "stable_diffusion",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "Текстовый энкодер"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "qwen_image_vae.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "masterpiece, best quality, score_7, safe, 1girl, rain, umbrella"
+  },
+  "_meta": {
+   "title": "Промпт"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts"
+  },
+  "_meta": {
+   "title": "Негатив"
+  }
+ },
+ "6": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 832,
+   "height": 1216,
+   "batch_size": 1
+  },
+  "_meta": {
+   "title": "Размер"
+  }
+ },
+ "7": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "6",
+    0
+   ],
+   "seed": 1,
+   "steps": 8,
+   "cfg": 1.0,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Генерация"
+  }
+ },
+ "8": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "7",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Декодирование"
+  }
+ },
+ "9": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "8",
+    0
+   ],
+   "filename_prefix": "studio/anima"
+  },
+  "_meta": {
+   "title": "Сохранить"
+  }
+ }
+}
