@@ -23,7 +23,7 @@
 
 ## Вехи
 - [x] Этап 0
-- [ ] Веха 1: ComfyUI + PyTorch + SageAttention + тест
+- [x] Веха 1: ComfyUI + PyTorch + SageAttention + тест
 - [ ] Веха 2: выбор моделей
 - [ ] Веха 3: workflow
 - [ ] Веха 4: менеджер моделей, помощник
@@ -31,3 +31,20 @@
 - [ ] Веха 6: остальные разделы
 - [ ] Веха 7: оптимизация и тесты
 - [ ] Веха 8: документация
+
+## Этап 1 — движок ✅ (2026-11-20)
+- Способ: git + venv (не portable): свой Python 3.12.16 через uv в `tools/`, venv в `venv/`. Проще ставить SageAttention/triton и обновлять.
+- ComfyUI v0.46.0+ (git, `ComfyUI/`), ComfyUI-Manager в custom_nodes.
+- PyTorch 2.14.1+cu130, CUDA 13.0, карта видна (sm_120).
+- Модели вынесены в `models/` (config/extra_model_paths.yaml), результаты в `data/output`.
+- Запуск: `start_comfyui.bat` (127.0.0.1:8188).
+- Тест API (`tools/test_api.py`, SD1.5 512px 25 шагов): 1-й прогон 20 c (загрузка), повторный 2.0 c.
+- `_test_sd15.safetensors` — временная тестовая модель, удалить после выбора моделей.
+
+### Ускорения
+| Ускорение | Прирост | Качество | Статус |
+|---|---|---|---|
+| SageAttention 2.2 (triton-windows 3.9) | внимание ×6 (48→8 мс в тесте), на видео-моделях ~1.5–2× общий | минимальное | включено всегда |
+| Async offload, dynamic VRAM, cudaMallocAsync, RAM-кэш | быстрее выгрузка/подгрузка | нет | по умолчанию в ComfyUI |
+| --fast fp16_accumulation | +10–20% | минимальное/заметное | только «Черновик» |
+| Ускоряющие LoRA (lightx2v, Hyper, DMD2 и т.п.) | 3–8× | заметное | только «Черновик» (этап 2–3) |
