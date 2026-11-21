@@ -9,6 +9,7 @@ from ..assistant import safety
 from . import db, presets
 
 THUMBS = DATA / "thumbs"
+FREE_BEFORE = {"video_audio"}
 CLIENT_ID = "iskra-" + uuid.uuid4().hex[:8]
 
 ERRORS_RU = [
@@ -215,11 +216,19 @@ class JobManager:
         try:
             graph = REGISTRY[job.workflow](dict(job.params), job.mode)
             job._done_evt = asyncio.Event()
+            if job.workflow in FREE_BEFORE:
+                # сторонние ноды (MMAudio) не умеют выгружать чужие модели — освобождаем VRAM заранее
+                try:
+                    await asyncio.get_event_loop().run_in_executor(None, _post, "/free", {"unload_models": True, "free_memory": True})
+                except Exception:
+                    pass
             res = await asyncio.get_event_loop().run_in_executor(None, _post, "/prompt", {"prompt": graph, "client_id": CLIENT_ID})
             job.prompt_id = res["prompt_id"]
             await job._done_evt.wait()
             if job.state == "cancelled":
                 return
+            if getattr(job, "_lost", False):
+                raise ConnectionError("движок упал во время задачи")
             if job.error:
                 raise RuntimeError(job.error)
             await asyncio.get_event_loop().run_in_executor(None, self._collect, job, graph)
@@ -229,6 +238,7 @@ class JobManager:
             job.state, job.error = "error", human_error(body)
         except (urllib.error.URLError, ConnectionError) as e:
             if retry:  # ComfyUI упал — ждём перезапуска и повторяем один раз
+                job._lost = False
                 job.node = "Перезапуск движка…"
                 self.push({"type": "job", "job": job.info()})
                 for _ in range(90):
@@ -304,7 +314,13 @@ class JobManager:
                     async for msg in ws:
                         await self._on_comfy(msg)
             except Exception:
-                await asyncio.sleep(3)
+                pass
+            # связь с движком оборвалась: текущая задача не завершится сама — помечаем для повтора
+            j = self.current
+            if j and j.prompt_id and hasattr(j, "_done_evt") and not j._done_evt.is_set():
+                j._lost = True
+                j._done_evt.set()
+            await asyncio.sleep(3)
 
     async def _on_comfy(self, msg):
         job = self.current

@@ -60,6 +60,7 @@ class Service:
             elif self.state == "starting" and time.time() - (self.started_at or 0) > 180:
                 self.restart()
             elif not self.proc and self.state != "starting":
+                self.restarts += 1
                 self.start()
         return self.state
 

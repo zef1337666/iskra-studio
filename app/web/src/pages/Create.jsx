@@ -154,10 +154,10 @@ export default function Create() {
   if (!p) return <div className="p-8"><div className="h-12 w-80 rounded-xl skeleton" /></div>;
   const results = lastItems.filter((it) => !(safeMode && it.nsfw));
   return (
-    <div className="h-full flex flex-col lg:flex-row">
+    <div className="h-full overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row">
       {/* ---------- панель управления */}
-      <section className="lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col min-h-0 lg:border-r" style={{ borderColor: "var(--line)" }}>
-        <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
+      <section className="lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col lg:min-h-0 lg:border-r" style={{ borderColor: "var(--line)" }}>
+        <div className="lg:flex-1 lg:overflow-y-auto p-4 md:p-5 space-y-4">
           <PresetPicker value={p.id} onChange={(id) => setDraft({ preset: id })} />
           <div className="rounded-2xl p-1 transition focus-within:shadow-[0_0_0_3px_rgba(139,124,255,.18)]" style={{ background: "var(--panel-2)", border: "1px solid var(--line)" }}>
             <textarea ref={ta} value={draft.text} onChange={(e) => setDraft({ text: e.target.value })} rows={4}
@@ -240,7 +240,7 @@ export default function Create() {
         </div>
       </section>
       {/* ---------- результаты */}
-      <section className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+      <section className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto p-4 md:p-6 min-h-[50vh]">
         {active.length === 0 && results.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
             <img src="/logo.svg" className="w-16 h-16 mb-5 opacity-90" alt="" />

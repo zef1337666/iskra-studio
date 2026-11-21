@@ -137,6 +137,12 @@ def queue():
     return JM.queue_info()
 
 
+@app.get("/api/jobs/recent")
+def jobs_recent():
+    js = sorted(JM.jobs.values(), key=lambda j: j.created)[-20:]
+    return [j.info() | {"raw_error": getattr(j, "_raw_error", None)} for j in js]
+
+
 @app.post("/api/jobs/{jid}/cancel")
 def cancel(jid: str):
     JM.cancel(jid)
