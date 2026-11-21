@@ -1,1 +1,1 @@
-﻿{"prefix":"test/h3_t2v_q","seconds":4,"seed":7,"prompt":"A paper boat floats down a rain-filled street gutter, camera follows it at ground level, splashing raindrops, soft rain sounds and distant thunder"}
+﻿{"folder":"lora_test","name":"test_ivn","steps":30,"rank":16,"seed":1,"resolution":512}

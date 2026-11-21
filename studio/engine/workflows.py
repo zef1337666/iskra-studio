@@ -491,7 +491,26 @@ def zimage_control(p, mode="quality"):
     return g.to_api()
 
 
+# ---------------------------------------------------------------- Обучение LoRA персонажа (нативные ноды ComfyUI)
+def train_lora(p, mode="quality"):
+    """p: folder (подпапка data/input с картинками + .txt подписями), name, steps, rank, lr.
+    База — Z-Image Turbo (Klein в ComfyUI пока не обучается: ошибки dtype/autograd внутри модели, тест 2026-11-20)."""
+    g = Graph()
+    unet, clip, vae = _zimage(g) if p.get("base", "zimage") == "zimage" else _klein_base(g, "quality")
+    ds = g.add("LoadImageTextDataSetFromFolder", "Датасет", folder=p["folder"])
+    rs = g.add("ResizeImagesByShorterEdge", "Размер 768", images=ds[0], shorter_edge=int(p.get("resolution", 768)))
+    td = g.add("MakeTrainingDataset", "Латенты и подписи", images=rs.out, vae=vae.out, clip=clip.out, texts=ds[1])
+    steps = int(p.get("steps") or (300 if mode == "draft" else 800))
+    tr = g.add("TrainLoraNode", "Обучение", model=unet.out, latents=td[0], positive=td[1], batch_size=1, grad_accumulation_steps=1,
+               steps=steps, learning_rate=float(p.get("lr", 0.0002)), rank=int(p.get("rank", 16)), optimizer="AdamW", loss_function="MSE",
+               seed=_seed(p) % 2**31, training_dtype=p.get("training_dtype", "bf16"), lora_dtype="bf16", quantized_backward=True, algorithm="LoRA",
+               gradient_checkpointing=True, checkpoint_depth=1, offloading=bool(p.get("offloading", True)), existing_lora="[None]", bucket_mode=True, bypass_mode=False)
+    g.add("SaveLoRA", "Сохранить LoRA", lora=tr[0], prefix=f"loras/characters/{p['name']}", steps=tr[2])
+    return g.to_api()
+
+
 REGISTRY = {
+    "train_lora": train_lora,
     "zimage_control": zimage_control,
     "detailer": detailer,
     "image_to_3d": image_to_3d,

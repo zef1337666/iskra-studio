@@ -33,6 +33,53 @@ async def lifespan(app):
 
 app = FastAPI(title="Искра", lifespan=lifespan)
 
+# ---------------------------------------------------------------- доступ с телефона: пароль для всех, кто не на этом компьютере
+from fastapi import Request  # noqa: E402
+from fastapi.responses import HTMLResponse, RedirectResponse  # noqa: E402
+
+LOCAL = {"127.0.0.1", "::1", "localhost"}
+REMOTE_DENY = ("/api/settings", "/api/pin/set", "/api/phone", "/api/telegram", "/api/services", "/api/models/file", "/api/models/install",
+               "/api/system/report")
+LOGIN_HTML = """<!doctype html><html lang=ru><meta name=viewport content="width=device-width,initial-scale=1"><title>Искра — вход</title>
+<body style="margin:0;background:#0b0c11;color:#ebedf3;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh">
+<form method=post action=/api/login style="width:min(320px,90vw);text-align:center"><img src=/logo.svg width=56><h2>Искра</h2>
+<input name=password type=password placeholder="Пароль" autofocus style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #272b37;background:#15171f;color:#fff;font-size:16px">
+<button style="margin-top:12px;width:100%;padding:14px;border:0;border-radius:12px;background:#8b7cff;color:#fff;font-size:16px">Войти</button>
+<p style="color:#ff6b6b">{err}</p></form></body></html>"""
+
+
+@app.middleware("http")
+async def phone_guard(request: Request, call_next):
+    host = request.client.host if request.client else "127.0.0.1"
+    if host in LOCAL:
+        return await call_next(request)
+    path = request.url.path
+    if path in ("/login", "/api/login", "/logo.svg"):
+        return await call_next(request)
+    if request.cookies.get("iskra_auth") != extras.session_token() or not extras.get_settings().get("phone_access"):
+        if path.startswith("/api") or path.startswith("/files"):
+            return JSONResponse({"detail": "Нужен вход"}, status_code=401)
+        return RedirectResponse("/login")
+    if path.startswith(REMOTE_DENY) and request.method != "GET" or path.startswith(("/api/settings/key", "/api/system/report", "/api/phone")):
+        return JSONResponse({"detail": "Это действие доступно только на самом компьютере."}, status_code=403)
+    return await call_next(request)
+
+
+@app.get("/login")
+def login_page(err: str = ""):
+    return HTMLResponse(LOGIN_HTML.replace("{err}", "Неверный пароль" if err else ""))
+
+
+@app.post("/api/login")
+async def login(request: Request):
+    form = await request.form()
+    tok = extras.phone_login(form.get("password"))
+    if not tok:
+        return RedirectResponse("/login?err=1", status_code=303)
+    r = RedirectResponse("/", status_code=303)
+    r.set_cookie("iskra_auth", tok, max_age=30 * 86400, httponly=True, samesite="lax")
+    return r
+
 
 def err(msg, code=400):
     raise HTTPException(code, detail=msg)
@@ -436,6 +483,56 @@ def preset_from_model(body: dict):
     return presets.save(p)
 
 
+# ---------------------------------------------------------------- телефон и Telegram (настройка только с этого компьютера)
+@app.get("/api/phone/info")
+def phone_info():
+    s = extras.get_settings()
+    ips = extras.lan_ips()
+    bound = os.environ.get("ISKRA_BOUND_HOST", "127.0.0.1")
+    return {"enabled": s.get("phone_access"), "pass_set": bool(s.get("phone_pass_hash")), "ips": ips,
+            "urls": [f"http://{ip}:7860" for ip in ips], "listening_lan": bound == "0.0.0.0"}
+
+
+@app.post("/api/phone/password")
+def phone_password(body: dict):
+    try:
+        extras.set_phone_password(body.get("password", ""))
+    except ValueError as e:
+        err(str(e))
+    return {"ok": True}
+
+
+@app.post("/api/telegram/token")
+def tg_token(body: dict):
+    tok = (body.get("token") or "").strip()
+    import re as _re
+    if not _re.fullmatch(r"\d{6,12}:[A-Za-z0-9_-]{30,}", tok):
+        err("Это не похоже на токен бота. Он выглядит так: 1234567890:AAH…")
+    save_env_key("TELEGRAM_BOT_TOKEN", tok)
+    return {"ok": True}
+
+
+@app.post("/api/telegram/detect")
+def tg_detect():
+    try:
+        return extras.telegram_detect()
+    except ValueError as e:
+        err(str(e))
+    except Exception:
+        err("Telegram не отвечает. Проверьте токен и интернет.")
+
+
+@app.post("/api/telegram/test")
+def tg_test():
+    try:
+        extras.telegram_send("Искра: проверка связи. Уведомления о готовых задачах будут приходить сюда.")
+    except ValueError as e:
+        err(str(e))
+    except Exception:
+        err("Не удалось отправить сообщение. Проверьте токен.")
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- система: логи, отчёт, бенчмарк
 @app.get("/api/system/logs/{name}")
 def sys_logs(name: str):
@@ -455,6 +552,10 @@ def sys_bench():
 # ---------------------------------------------------------------- WebSocket для интерфейса
 @app.websocket("/ws")
 async def ws(websocket: WebSocket):
+    host = websocket.client.host if websocket.client else "127.0.0.1"
+    if host not in LOCAL and websocket.cookies.get("iskra_auth") != extras.session_token():
+        await websocket.close(code=4401)
+        return
     await websocket.accept()
     JM.listeners.add(websocket)
     await websocket.send_json({"type": "queue", "queue": JM.queue_info()})
@@ -499,9 +600,17 @@ if WEB.exists():
     app.mount("/", StaticFiles(directory=str(WEB), html=True), name="web")
 
 
+def bind_host():
+    """0.0.0.0 (домашняя сеть) только если включён доступ с телефона и задан пароль."""
+    s = extras.get_settings()
+    host = "0.0.0.0" if s.get("phone_access") and s.get("phone_pass_hash") else "127.0.0.1"
+    os.environ["ISKRA_BOUND_HOST"] = host
+    return host
+
+
 def main():
     import uvicorn
-    uvicorn.run(app, host=os.environ.get("ISKRA_HOST", "127.0.0.1"), port=int(os.environ.get("ISKRA_PORT", 7860)), log_level="warning")
+    uvicorn.run(app, host=bind_host(), port=int(os.environ.get("ISKRA_PORT", 7860)), log_level="warning")
 
 
 if __name__ == "__main__":

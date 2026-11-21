@@ -5,7 +5,9 @@ from . import db
 
 SETTINGS_FILE = DATA / "settings.json"
 DEFAULTS = {"default_mode": "quality", "save_format": "png", "jpg_quality": 92, "keep_metadata": True, "explain_lang": "ru",
-            "notify_windows": True, "pin_hash": None, "onboarded": False, "night_mode": False}
+            "notify_windows": True, "pin_hash": None, "onboarded": False, "night_mode": False,
+            "phone_access": False, "phone_pass_hash": None, "telegram_enabled": False, "telegram_chat_id": None}
+SECRET_KEYS = ("pin_hash", "phone_pass_hash")
 
 
 def get_settings():
@@ -21,13 +23,14 @@ def get_settings():
 def public_settings():
     s = get_settings()
     s["pin_set"] = bool(s.pop("pin_hash"))
+    s["phone_pass_set"] = bool(s.pop("phone_pass_hash"))
     return s
 
 
 def save_settings(patch):
     s = get_settings()
     for k, v in patch.items():
-        if k in DEFAULTS and k != "pin_hash":
+        if k in DEFAULTS and k not in SECRET_KEYS:
             s[k] = v
     SETTINGS_FILE.write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
     return public_settings()
@@ -58,9 +61,88 @@ def check_pin(pin):
     return (not h) or _h(pin or "") == h
 
 
-# ---------------------------------------------------------------- уведомления Windows
+# ---------------------------------------------------------------- доступ с телефона
+import hmac, secrets, socket  # noqa: E402
+
+_SESSION_SECRET = secrets.token_hex(16)
+
+
+def set_phone_password(pw):
+    if len(pw or "") < 6:
+        raise ValueError("Пароль — минимум 6 символов.")
+    s = get_settings()
+    s["phone_pass_hash"] = hashlib.sha256(("iskra-phone:" + pw).encode()).hexdigest()
+    SETTINGS_FILE.write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def phone_login(pw):
+    h = get_settings().get("phone_pass_hash")
+    if not h or not hmac.compare_digest(h, hashlib.sha256(("iskra-phone:" + (pw or "")).encode()).hexdigest()):
+        return None
+    return session_token()
+
+
+def session_token():
+    h = get_settings().get("phone_pass_hash") or ""
+    return hmac.new(_SESSION_SECRET.encode(), h.encode(), "sha256").hexdigest()
+
+
+def lan_ips():
+    ips = set()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("192.168.1.1", 80))  # без отправки пакетов: просто узнать свой адрес в сети
+        ips.add(s.getsockname()[0])
+        s.close()
+    except Exception:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if ip.startswith(("192.168.", "10.", "172.")):
+                ips.add(ip)
+    except Exception:
+        pass
+    return sorted(ips)
+
+
+# ---------------------------------------------------------------- Telegram
+def telegram_send(text, chat_id=None):
+    from ..config import load_env
+    import urllib.request, urllib.parse
+    token = load_env().get("TELEGRAM_BOT_TOKEN")
+    chat = chat_id or get_settings().get("telegram_chat_id")
+    if not token or not chat:
+        raise ValueError("Telegram не настроен: нужен токен бота и чат.")
+    data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
+    urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=15)
+
+
+def telegram_detect():
+    """Находит чат: пользователь пишет боту /start, мы берём chat_id из последнего сообщения."""
+    from ..config import load_env
+    import urllib.request
+    token = load_env().get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        raise ValueError("Сначала сохраните токен бота.")
+    d = json.loads(urllib.request.urlopen(f"https://api.telegram.org/bot{token}/getUpdates", timeout=15).read())
+    chats = [u["message"]["chat"] for u in d.get("result", []) if u.get("message")]
+    if not chats:
+        raise ValueError("Бот пока не получил сообщений. Откройте бота в Telegram, нажмите «Start» и повторите.")
+    chat = chats[-1]
+    s = get_settings()
+    s["telegram_chat_id"], s["telegram_enabled"] = chat["id"], True
+    SETTINGS_FILE.write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"chat_id": chat["id"], "name": chat.get("first_name") or chat.get("title")}
+
+
+# ---------------------------------------------------------------- уведомления Windows (+ Telegram)
 def notify(title, text):
-    if not get_settings().get("notify_windows"):
+    s = get_settings()
+    if s.get("telegram_enabled") and s.get("telegram_chat_id"):
+        import threading
+        threading.Thread(target=lambda: _safe(telegram_send, f"{title}\n{text}"), daemon=True).start()
+    if not s.get("notify_windows"):
         return
     t = title.replace("'", "").replace("\n", " ")
     b = text.replace("'", "").replace("\n", " ")
@@ -70,6 +152,13 @@ def notify(title, text):
           "$n = [Windows.UI.Notifications.ToastNotification]::new($x);"
           "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show($n)")
     subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps], creationflags=0x08000000)
+
+
+def _safe(fn, *a):
+    try:
+        fn(*a)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------- персонажи и коллекции (таблицы в той же БД)

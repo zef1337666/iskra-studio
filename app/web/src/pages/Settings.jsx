@@ -13,6 +13,62 @@ function Row({ label, hint, children }) {
   return <div className="flex items-center gap-4 flex-wrap"><div className="flex-1 min-w-48"><div className="text-sm">{label}</div>{hint && <div className="text-xs dim">{hint}</div>}</div><div>{children}</div></div>;
 }
 
+function Telegram({ s, upd, reload }) {
+  const toast = useStore((x) => x.toast);
+  const [token, setToken] = useState("");
+  const [open, setOpen] = useState(false);
+  const act = async (fn, ok) => { try { const r = await fn(); toast(typeof ok === "function" ? ok(r) : ok); await reload(); } catch (e) { toast(e.message, "error"); } };
+  return (
+    <div className="space-y-3">
+      <Row label="Telegram" hint={s.telegram_chat_id ? "бот подключён" : "сообщения о готовых задачах в Telegram (только текст, без картинок)"}>
+        {s.telegram_chat_id ? <input type="checkbox" checked={s.telegram_enabled} onChange={(e) => upd({ telegram_enabled: e.target.checked })} className="w-5 h-5 accent-[var(--color-accent)]" />
+          : <button className="btn-ghost" onClick={() => setOpen(!open)}>Подключить</button>}
+      </Row>
+      {(open || s.telegram_chat_id) && <div className="rounded-xl p-3 space-y-2 text-sm" style={{ background: "var(--panel-2)" }}>
+        {!s.telegram_chat_id && <ol className="list-decimal pl-5 space-y-1 muted text-xs">
+          <li>В Telegram откройте <b>@BotFather</b>, отправьте <code>/newbot</code>, придумайте имя — он пришлёт токен.</li>
+          <li>Вставьте токен ниже и сохраните.</li><li>Откройте своего нового бота, нажмите «Start».</li><li>Нажмите «Найти мой чат».</li></ol>}
+        <div className="flex gap-2 flex-wrap">
+          <input type="password" className="field !w-64" placeholder="токен бота 1234567890:AAH…" value={token} onChange={(e) => setToken(e.target.value)} />
+          <button className="btn-ghost" disabled={!token} onClick={() => act(() => api.post("/api/telegram/token", { token }), "Токен сохранён в .env").then(() => setToken(""))}>Сохранить</button>
+          <button className="btn-ghost" onClick={() => act(() => api.post("/api/telegram/detect"), (r) => `Чат найден: ${r.name || r.chat_id}`)}>Найти мой чат</button>
+          {s.telegram_chat_id && <button className="btn-ghost" onClick={() => act(() => api.post("/api/telegram/test"), "Тестовое сообщение отправлено")}>Проверить</button>}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+function Phone({ s, upd }) {
+  const toast = useStore((x) => x.toast);
+  const [info, setInfo] = useState(null);
+  const [pw, setPw] = useState("");
+  const canvas = React.useRef();
+  const load = () => api.get("/api/phone/info").then(setInfo).catch(() => {});
+  useEffect(() => { load(); }, [s.phone_access]);
+  useEffect(() => {
+    if (info?.urls?.[0] && canvas.current) import("qrcode").then((Q) => Q.toCanvas(canvas.current, info.urls[0], { width: 180, margin: 1, color: { dark: "#0b0c11", light: "#ffffff" } }));
+  }, [info, s.phone_access]);
+  const savePw = async () => { try { await api.post("/api/phone/password", { password: pw }); setPw(""); toast("Пароль для телефона сохранён"); load(); } catch (e) { toast(e.message, "error"); } };
+  return (
+    <Card icon={Smartphone} title="Доступ с телефона">
+      <div className="text-xs muted">Студия откроется на телефоне в браузере, если он в той же домашней Wi-Fi. Можно создавать, смотреть галерею и скачивать. Вход по паролю, безопасный режим на телефоне свой.</div>
+      <Row label="Пароль для входа" hint={info?.pass_set ? "задан" : "минимум 6 символов"}>
+        <div className="flex gap-2"><input type="password" className="field !w-40" value={pw} onChange={(e) => setPw(e.target.value)} placeholder={info?.pass_set ? "новый пароль" : "пароль"} />
+          <button className="btn-ghost" disabled={pw.length < 6} onClick={savePw}>Сохранить</button></div>
+      </Row>
+      <Row label="Разрешить доступ из домашней сети">
+        <input type="checkbox" checked={!!s.phone_access} disabled={!info?.pass_set} onChange={(e) => upd({ phone_access: e.target.checked })} className="w-5 h-5 accent-[var(--color-accent)]" />
+      </Row>
+      {s.phone_access && info && (info.listening_lan ? <div className="flex gap-4 items-center flex-wrap">
+        <canvas ref={canvas} className="rounded-xl" />
+        <div className="text-sm space-y-1"><div>Наведите камеру телефона на QR-код или откройте:</div>{info.urls.map((u) => <div key={u} className="font-mono" style={{ color: "var(--color-accent-hi)" }}>{u}</div>)}
+          <div className="text-xs dim">Если не открывается — при первом запуске Windows спросит разрешение для Python в сети: нажмите «Разрешить» (частные сети).</div></div>
+      </div> : <div className="text-sm p-3 rounded-xl" style={{ background: "rgba(245,184,75,.12)", color: "#f5b84b" }}>Закройте и снова откройте «Искру» — студия начнёт принимать подключения из домашней сети.</div>)}
+    </Card>
+  );
+}
+
 export function applyAccent(c) {
   const r = document.documentElement.style;
   r.setProperty("--color-accent", c);
@@ -66,11 +122,9 @@ export default function Settings() {
         </Card>
         <Card icon={Bell} title="Уведомления">
           <Row label="Уведомление Windows" hint="Когда очередь опустела или долгая задача готова"><input type="checkbox" checked={s.notify_windows} onChange={(e) => upd({ notify_windows: e.target.checked })} className="w-5 h-5 accent-[var(--color-accent)]" /></Row>
-          <Row label="Telegram-бот" hint="Будет добавлен на последнем этапе (по вашему решению)"><span className="text-xs dim">скоро</span></Row>
+          <Telegram s={s} upd={upd} reload={async () => { const ns = await api.get("/api/settings"); setS(ns); }} />
         </Card>
-        <Card icon={Smartphone} title="Доступ с телефона">
-          <div className="text-sm muted">Отложено на последний этап (по вашему решению): вход по паролю в домашней Wi-Fi и QR-код для подключения.</div>
-        </Card>
+        <Phone s={s} upd={upd} />
         <div className="xl:col-span-2"><button className="btn-ghost" onClick={async () => { if (confirm("Сбросить настройки к стандартным? PIN и ключи сохранятся.")) { setS(await api.post("/api/settings/reset")); toast("Настройки сброшены"); } }}><RotateCcw size={15} />Сбросить настройки</button></div>
       </div>
     </div>

@@ -17,8 +17,8 @@ def alive():
 
 def run_server():
     import uvicorn
-    from studio.server.app import app
-    uvicorn.run(app, host=os.environ.get("ISKRA_HOST", "127.0.0.1"), port=7860, log_level="warning")
+    from studio.server.app import app, bind_host
+    uvicorn.run(app, host=bind_host(), port=7860, log_level="warning")
 
 
 def main():
