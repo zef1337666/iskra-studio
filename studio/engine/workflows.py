@@ -339,7 +339,7 @@ def h3_video(p, mode="quality"):
     """Текст → видео (без картинок), картинка → видео (1), первый+последний кадр (2). 24 к/с, звук генерируется сам."""
     g = Graph()
     seed = _seed(p)
-    unet = g.add("UnetLoaderGGUF", "MiniMax-H3 (GGUF)", unet_name="minimax_h3_fl2va_pruned-Q4_K.gguf").out
+    unet = g.add("UNETLoader", "MiniMax-H3 (w6a8)", unet_name="minimax_h3_fl2va_pruned_w6a8.safetensors", weight_dtype="default").out
     if mode == "draft" or p.get("turbo"):
         unet, _ = _loras(g, unet, [["minimax_h3_turbo_8step_v1.2.safetensors", 1.0]])
     clip = g.add("CLIPLoader", "Текстовый энкодер", clip_name="qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", type="minimax", device="default")
@@ -451,7 +451,48 @@ def detailer(p, mode="quality"):
     return klein_edit(q, mode)
 
 
+# ---------------------------------------------------------------- Поза и композиция: Z-Image Turbo + Fun ControlNet Union 2.1
+def _zimage(g):
+    unet = g.add("UNETLoader", "Z-Image Turbo", unet_name="z_image_turbo_int8_convrot.safetensors", weight_dtype="default")
+    clip = g.add("CLIPLoader", "Qwen3 4B", clip_name="qwen_3_4b_fp8_mixed.safetensors", type="lumina2", device="default")
+    vae = g.add("VAELoader", "VAE", vae_name="ae.safetensors")
+    return unet, clip, vae
+
+
+def zimage_control(p, mode="quality"):
+    """control: pose (скелет DWPose) | depth (глубина) | canny (контуры) | raw (картинка уже является позой/скетчем)."""
+    g = Graph()
+    seed = _seed(p)
+    unet, clip, vae = _zimage(g)
+    src = g.add("LoadImage", "Референс позы/композиции", image=p["images"][0])
+    img = g.add("ImageScaleToMaxDimension", "Размер", image=src[0], upscale_method="lanczos", largest_size=1024 if mode == "draft" else 1344).out
+    kind = p.get("control", "pose")
+    if kind == "pose":
+        img = g.add("DWPreprocessor", "Скелет позы", image=img, detect_hand="enable", detect_body="enable", detect_face="enable", resolution=1024,
+                    bbox_detector="yolox_l.onnx", pose_estimator="dw-ll_ucoco_384_bs5.torchscript.pt", scale_stick_for_xinsr_cn="disable")[0]
+    elif kind == "depth":
+        img = g.add("DepthAnythingV2Preprocessor", "Карта глубины", image=img, ckpt_name="depth_anything_v2_vitl.pth", resolution=1024).out
+    elif kind == "canny":
+        img = g.add("Canny", "Контуры", image=img, low_threshold=0.1, high_threshold=0.32).out
+    patch = g.add("ModelPatchLoader", "ControlNet Union", name="Z-Image-Turbo-Fun-Controlnet-Union-2.1-2602-8steps.safetensors")
+    model = g.add("QwenImageDiffsynthControlnet", "Применить ControlNet", model=unet.out, model_patch=patch.out, vae=vae.out, image=img,
+                  # depth/canny при 0.8 до конца дают «пластик» (тест) — слабее и отпускаем на последних шагах
+                  strength=float(p.get("strength", {"pose": 0.8, "raw": 0.75}.get(kind, 0.6))), start_percent=0.0,
+                  end_percent=float(p.get("end", 1.0 if kind == "pose" else 0.75))).out
+    model = g.add("ModelSamplingAuraFlow", "Сдвиг", model=model, shift=3.0).out
+    pos = g.add("CLIPTextEncode", "Промпт", clip=clip.out, text=p["prompt"])
+    neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
+    size = g.add("GetImageSize", "Размер кадра", image=img)
+    lat = g.add("EmptySD3LatentImage", "Латент", width=size[0], height=size[1], batch_size=1)
+    ks = g.add("KSampler", "Генерация", model=model, positive=pos.out, negative=neg.out, latent_image=lat.out, seed=seed, steps=8, cfg=1.0,
+               sampler_name="res_multistep", scheduler="simple", denoise=1.0)
+    out = g.add("VAEDecode", "Декодирование", samples=ks.out, vae=vae.out)
+    _save(g, out.out, p, "studio/pose")
+    return g.to_api()
+
+
 REGISTRY = {
+    "zimage_control": zimage_control,
     "detailer": detailer,
     "image_to_3d": image_to_3d,
     "video_enhance": video_enhance,

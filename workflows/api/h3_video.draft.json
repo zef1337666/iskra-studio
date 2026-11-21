@@ -1,11 +1,12 @@
 {
  "1": {
-  "class_type": "UnetLoaderGGUF",
+  "class_type": "UNETLoader",
   "inputs": {
-   "unet_name": "minimax_h3_fl2va_pruned-Q4_K.gguf"
+   "unet_name": "minimax_h3_fl2va_pruned_w6a8.safetensors",
+   "weight_dtype": "default"
   },
   "_meta": {
-   "title": "MiniMax-H3 (GGUF)"
+   "title": "MiniMax-H3 (w6a8)"
   }
  },
  "2": {

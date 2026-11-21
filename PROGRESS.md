@@ -25,7 +25,7 @@
 - [x] Этап 0
 - [x] Веха 1: ComfyUI + PyTorch + SageAttention + тест
 - [x] Веха 2: выбор моделей (23 шт.; Big Love и One Obsession — 403 на Civitai)
-- [ ] Веха 3: workflow
+- [x] Веха 3: workflow
 - [ ] Веха 4: менеджер моделей, помощник
 - [ ] Веха 5: MVP приложения
 - [ ] Веха 6: остальные разделы
@@ -61,7 +61,7 @@
 - Ollama портативно в `tools/ollama`, модели в `models/llm`: qwen3.5:9b (умеет vision), joycaption Q8_0.
 - Ноды: Impact-Pack/Subpack, controlnet_aux, GGUF, MMAudio, VideoHelperSuite, KJNodes. SeedVR2/RIFE/BiRefNet/3D — нативные.
 
-## Этап 3 — workflow (в основном ✅, 2026-11-20)
+## Этап 3 — workflow ✅ (2026-11-20)
 Код: `studio/engine/workflows.py` (конструктор API-графов, REGISTRY), `studio/engine/ui2api.py` (конвертер UI→API для официальных шаблонов).
 Экспорт: `workflows/api/*.draft|quality.json`, `workflows/ui/*.json` (официальные шаблоны для ручной работы). Замеры: `tools/bench.py` → `data/bench.jsonl`.
 
@@ -69,11 +69,11 @@
 - Klein: sampler er_sde из шаблона «пережаривает» кожу → euler. Второй проход (hires/FaceDetailer) на дистилляте Klein портит текстуру → в «Качестве» int8 + 1–1.5 Мп без второго прохода.
 - Детейлер = правка Klein с инструкцией ретушёра (FaceDetailer не подходит для дистиллятов).
 - Outpaint: серые поля Klein копирует → исходник как референс + холст целевого размера.
-- MiniMax-H3 GGUF (unsloth) — только для stable-diffusion.cpp, в ComfyUI не грузится. Нативная версия для ComfyUI: pruned_w6a8 (16 ГБ) — ждёт решения пользователя.
+- MiniMax-H3 GGUF (unsloth) — только для stable-diffusion.cpp, в ComfyUI не грузится. GGUF удалён; скачан нативный pruned_w6a8 (16 ГБ) — работает (подкачка пик ~11 ГБ).
 - MMAudio: кадры нужно пересэмплировать в 25 к/с (VHS_LoadVideo force_rate) — иначе звук короче. Работает медленно (3.7 с/шаг, VRAM 16 ГБ) — разобрать на вехе 7.
 - SmoothMix Wan: при 4 шагах размытие, нужно ≥8.
-- ControlNet Z-Image Fun Union требует базовую Z-Image Turbo (не выбрана) — ждёт решения.
-- Big Love KreaLife3 и One Obsession: Civitai отдаёт 403 (вероятно, уровень контента в аккаунте) — повторить.
+- ControlNet: докачана Z-Image Turbo int8 + Qwen3-4B fp8 + ae (по решению пользователя). Поза — сила 0.8; глубина/контуры — 0.6 до 75% шагов (иначе «пластик»).
+- Big Love KreaLife3 и One Obsession (nsfwLevel XXX): Civitai 403 даже после включения уровней — вероятно, ограничение аккаунта/региона. Неофициальные зеркала НЕ используем. 18+ реализм работает на Krea 2 Turbo + Realistic Snapshot/FameGrid.
 
 ### Бенчмарк (RTX 5060 Ti 16 ГБ; время с прогретой моделью, если не указано; пик VRAM по nvidia-smi)
 | Workflow | Черновик | Качество | Пик VRAM |
@@ -92,8 +92,16 @@
 | Первый+последний кадр Wan | 99 с | ≈280 с | 15.6 |
 | Улучшение видео | 3 с (RIFE x2) | 222 с (+SeedVR2 x2) | 1–12.5 |
 | Звук MMAudio, 5 с | 51 с | ≈100 с | 16.0 (!) |
+| Поза (Z-Image + ControlNet) | ≈25 с | 28 с | 15.4–15.8 (на пределе) |
+| Видео со звуком MiniMax-H3, 4 с | 70 с (640×640, turbo 6 шагов) | 226 с (1056×576, 20 шагов) | 15.6–15.7 |
 | Картинка → 3D Pixal3D (GLB) | 93 с | 115 с | 12.6–12.9 |
 | 18+ фото Krea 2 + Realistic Snapshot | — | 22 с* | 15.0 |
 | 18+ видео Wan NSFW Q6, 4 с | 137 с* | — | 14.9 |
 | 18+ аниме-видео SmoothMix, 3 с (8 шагов) | 86 с | — | 14.7 |
 \* с загрузкой модели. Ни одной ошибки нехватки памяти.
+
+### Какая модель за что отвечает (для пресетов этапа 6)
+- Фото/правка/инпейнт/аутпейнт/персонаж/детейлер: FLUX.3 Klein (черновик nvfp4, качество int8).
+- Аниме: Anima Turbo. Стили: Krea 2 + LoRA. Поза: Z-Image + ControlNet.
+- Видео (текст/картинка/первый+последний кадр, со звуком): MiniMax-H3 (черновик turbo-LoRA). Wan 2.2 — запасной и для 18+ (NSFW Q6, SmoothMix).
+- Звук к готовому видео: MMAudio. Плавность: RIFE. Апскейл: SeedVR2. Фон: BiRefNet. 3D: Pixal3D.
