@@ -12,3 +12,4 @@ eta:
   quality: 14
 description: «Смени фон», «сделай ночь», «добавь очки» — загрузите картинку и напишите,
   что изменить.
+prompt_template: '{prompt} Keep everything not mentioned unchanged.'

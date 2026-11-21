@@ -99,8 +99,10 @@ def gpu_stats():
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw",
                               "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5, creationflags=CREATE_NO_WINDOW).stdout
-        u, t, mu, mt, p = [x.strip() for x in out.strip().split(",")]
-        return {"util": int(u), "temp": int(t), "vram_used": int(mu), "vram_total": int(mt), "power": float(p)}
+        vals = [x.strip() for x in out.strip().splitlines()[0].split(",")]
+        num = lambda v: float(v) if v.replace(".", "", 1).isdigit() else None  # «[N/A]» на некоторых драйверах
+        u, t, mu, mt, p = (num(v) for v in vals)
+        return {"util": int(u or 0), "temp": int(t or 0), "vram_used": int(mu or 0), "vram_total": int(mt or 16384), "power": p}
     except Exception:
         return None
 

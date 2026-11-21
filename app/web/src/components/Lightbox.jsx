@@ -4,6 +4,7 @@ import { fileUrl, api } from "../api";
 import { useStore } from "../store";
 import { ACTIONS, toggleFav } from "./actions";
 import { Tip } from "./ui";
+import MaskEditor from "./MaskEditor";
 
 export function Media({ it, className = "", controls, autoPlay }) {
   if (it.kind === "video") return <video src={fileUrl(it)} className={className} controls={controls} autoPlay={autoPlay} loop playsInline />;
@@ -11,13 +12,47 @@ export function Media({ it, className = "", controls, autoPlay }) {
   return <img src={fileUrl(it)} className={className} alt="" />;
 }
 
+function Compare({ before, after }) {
+  const [x, setX] = useState(50);
+  const ref = React.useRef();
+  const drag = (e) => { const r = ref.current.getBoundingClientRect(); setX(Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100))); };
+  return (
+    <div ref={ref} className="relative max-w-full max-h-full select-none cursor-ew-resize" onMouseMove={(e) => e.buttons === 1 && drag(e)} onMouseDown={drag} onClick={(e) => e.stopPropagation()}>
+      <img src={fileUrl(after)} className="max-w-full max-h-[calc(100vh-170px)] block rounded-lg" alt="" draggable={false} />
+      <img src={fileUrl(before)} className="absolute inset-0 w-full h-full object-fill rounded-lg" style={{ clipPath: `inset(0 ${100 - x}% 0 0)` }} alt="" draggable={false} />
+      <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow" style={{ left: `${x}%` }}><div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center text-xs font-bold">⇔</div></div>
+      <span className="absolute top-3 left-3 text-xs bg-black/60 text-white px-2 py-1 rounded">До</span><span className="absolute top-3 right-3 text-xs bg-black/60 text-white px-2 py-1 rounded">После</span>
+    </div>
+  );
+}
+
 export default function Lightbox({ items, index, onClose, onIndex }) {
   const it = items[index];
   const [cur, setCur] = useState(it);
   const [zoom, setZoom] = useState(false);
   const [meta, setMeta] = useState(false);
+  const [parent, setParent] = useState(null);
+  const [compare, setCompare] = useState(false);
+  const [mask, setMask] = useState(false);
+  const [collMenu, setCollMenu] = useState(null);
   const toast = useStore((s) => s.toast);
-  useEffect(() => { setCur(it); setZoom(false); }, [it?.id]);
+  useEffect(() => {
+    setCur(it); setZoom(false); setCompare(false); setParent(null);
+    if (it?.parent_id) api.get(`/api/items/${it.parent_id}`).then((p) => p.kind === "image" && setParent(p)).catch(() => {});
+  }, [it?.id]);
+  const saveChar = async () => {
+    const name = prompt("Имя персонажа (вымышленного):");
+    if (!name) return;
+    try { const ref = await api.post(`/api/items/${cur.id}/to-input`); await api.post("/api/characters", { name, description: cur.user_text || "", refs: [ref], cover: cur.thumb }); toast(`Персонаж «${name}» сохранён — выберите его в «Создать»`); }
+    catch (e) { toast(e.message, "error"); }
+  };
+  const openColl = async () => setCollMenu(await api.get("/api/collections"));
+  const addColl = async (c) => {
+    try {
+      const col = c || (await api.post("/api/collections", { name: window.prompt("Название новой коллекции:") || "" }));
+      await api.post(`/api/collections/${col.id}/add`, { ids: [cur.id] }); toast(`Добавлено в «${col.name}»`); setCollMenu(null);
+    } catch (e) { toast(e.message, "error"); }
+  };
   useEffect(() => {
     const k = (e) => {
       if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
@@ -55,8 +90,14 @@ export default function Lightbox({ items, index, onClose, onIndex }) {
       </div>
       <div className="flex-1 min-h-0 flex relative">
         <div className={`flex-1 min-w-0 flex items-center justify-center p-4 ${zoom ? "overflow-auto" : ""}`} onClick={() => cur.kind === "image" && setZoom(!zoom)}>
-          <Media it={cur} controls autoPlay className={zoom ? "max-w-none cursor-zoom-out" : "max-w-full max-h-full object-contain cursor-zoom-in rounded-lg"} />
+          {compare && parent ? <Compare before={parent} after={cur} /> : <Media it={cur} controls autoPlay className={zoom ? "max-w-none cursor-zoom-out" : "max-w-full max-h-full object-contain cursor-zoom-in rounded-lg"} />}
         </div>
+        {collMenu && <div className="absolute bottom-3 left-1/2 -translate-x-1/2 panel rounded-2xl p-2 w-64 shadow-2xl z-10 animate-pop" onClick={(e) => e.stopPropagation()}>
+          <div className="text-xs dim px-2 py-1">Добавить в коллекцию</div>
+          {collMenu.map((c) => <button key={c.id} className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-[var(--panel-2)]" onClick={() => addColl(c)}>{c.name} <span className="dim text-xs">· {c.n}</span></button>)}
+          <button className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-[var(--panel-2)]" style={{ color: "var(--color-accent-hi)" }} onClick={() => addColl(null)}>+ Новая коллекция</button>
+          <button className="w-full text-left px-2 py-1 text-xs dim" onClick={() => setCollMenu(null)}>Закрыть</button>
+        </div>}
         {meta && <div className="w-80 shrink-0 bg-black/60 text-white/85 text-sm p-4 overflow-auto space-y-3">
           <div><div className="text-white/50 text-xs mb-1">Ваш текст</div>{cur.user_text || "—"}</div>
           <div><div className="text-white/50 text-xs mb-1">Промпт</div><div className="text-xs leading-relaxed">{cur.prompt}</div></div>
@@ -67,10 +108,15 @@ export default function Lightbox({ items, index, onClose, onIndex }) {
         {index < items.length - 1 && <button className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center" style={meta ? { right: "21rem" } : {}} onClick={() => onIndex(index + 1)} aria-label="Вперёд"><ChevronRight /></button>}
       </div>
       <div className="flex gap-2 p-3 overflow-x-auto justify-center flex-wrap">
+        {parent && <Tip text="Слайдер «до / после»"><button className={`btn !h-8 !text-xs text-white ${compare ? "bg-[var(--color-accent)]" : "bg-white/10 hover:bg-white/20"}`} onClick={() => setCompare(!compare)}>Сравнить</button></Tip>}
+        {cur.kind === "image" && <Tip text="Закрасьте область и опишите, что там нарисовать"><button className="btn !h-8 !text-xs text-white/90 bg-white/10 hover:bg-white/20" onClick={() => setMask(true)}>Перерисовать область</button></Tip>}
+        {cur.kind === "image" && !cur.nsfw && <Tip text="Сохранить вымышленного персонажа для повторного использования"><button className="btn !h-8 !text-xs text-white/90 bg-white/10 hover:bg-white/20" onClick={saveChar}>Сохранить персонажа</button></Tip>}
+        <button className="btn !h-8 !text-xs text-white/90 bg-white/10 hover:bg-white/20" onClick={openColl}>В коллекцию</button>
         {ACTIONS.filter((a) => a.kinds.includes(cur.kind)).map((a) => (
           <Tip key={a.id} text={a.hint}><button className="btn !h-8 text-white/90 bg-white/10 hover:bg-white/20 !text-xs whitespace-nowrap" onClick={() => { a.run(cur); if (["edit", "animate", "as-ref", "edit-prompt"].includes(a.id)) onClose(); }}>{a.label}</button></Tip>
         ))}
       </div>
+      {mask && <MaskEditor item={cur} onClose={() => setMask(false)} />}
     </div>
   );
 }

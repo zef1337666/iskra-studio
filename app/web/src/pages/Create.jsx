@@ -83,11 +83,16 @@ export default function Create() {
   const [smooth, setSmooth] = useState(false);
   const [busy, setBusy] = useState(null);
   const [lb, setLb] = useState(null);
+  const [character, setCharacter] = useState(null);
+  const [chars, setChars] = useState([]);
   const ta = useRef();
+  useEffect(() => { api.get("/api/characters").then(setChars).catch(() => {}); }, []);
+  const pickChar = (c) => { setCharacter(c); if (c) { setRefs(c.refs); setDraft({ preset: "character" }); } else setRefs([]); };
 
   useEffect(() => {
     if (!refInject) return;
     if (refInject.refs) setRefs(refInject.refs);
+    if (refInject.character) setCharacter(refInject.character);
     if (refInject.prompt !== undefined) { setPrompt(refInject.prompt); setNegative(refInject.negative || ""); setShowPrompt(true); }
     if (refInject.seed) { setSeed(String(refInject.seed)); }
     useStore.setState({ refInject: null });
@@ -114,8 +119,8 @@ export default function Create() {
   };
 
   const body = (overPrompt) => ({
-    preset: p.id, mode: draft.mode, aspect: draft.aspect, count: draft.count, user_text: draft.text,
-    prompt: (overPrompt ?? prompt) || (draft.text + (chip ? `, ${chip.hint}` : "")), negative,
+    preset: p.id, mode: draft.mode, aspect: draft.aspect, count: draft.count, user_text: draft.text, character: character?.id,
+    prompt: (overPrompt ?? prompt) || (draft.text + (chip ? `, ${chip.hint}` : "") + (character?.description ? `. ${character.description}` : "")), negative,
     images: refs.map((r) => r.name).filter(Boolean), focus, ref_strength: strength,
     seed: seed ? Number(seed) : undefined, seed_lock: seedLock, steps: steps ? Number(steps) : undefined, cfg: cfg ? Number(cfg) : undefined,
     loras: loras.filter((l) => l.name), ...(media === "video" ? { seconds, camera, smooth } : {}),
@@ -174,6 +179,10 @@ export default function Create() {
             {variants.map((v, i) => <button key={i} onClick={() => { setPrompt(v.prompt); setNegative(v.negative || ""); setExplain(v.explanation_ru); setVariants(null); setShowPrompt(true); }}
               className="w-full text-left text-xs p-3 rounded-xl hover:bg-[var(--panel-2)] transition muted leading-relaxed" style={{ border: "1px solid var(--line)" }}>{v.prompt}</button>)}
           </div>}
+          {!p.nsfw && media === "image" && chars.length > 0 && <div className="flex items-center gap-2">
+            <span className="label shrink-0">Персонаж</span>
+            <select className="field !py-1.5" value={character?.id || ""} onChange={(e) => pickChar(chars.find((c) => c.id === Number(e.target.value)) || null)}>
+              <option value="">— без персонажа —</option>{chars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
           <RefDrop refs={refs} setRefs={setRefs} max={maxRefs} accept={p.requires === "video" ? "video" : "image"}
             label={p.requires === "images2" ? "Первый и последний кадр" : p.id === "character" ? "Референсы персонажа (1–3)" : needsRef ? "Исходная картинка" : "Картинка-референс (необязательно)"} />
           {refs.length > 0 && !needsRef && <div className="space-y-2.5 animate-fade-in">

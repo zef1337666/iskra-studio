@@ -117,6 +117,13 @@ class JobManager:
                 focus = {"style": "in the visual style of", "composition": "with the same composition and pose as",
                          "character": "featuring the same character as", "colors": "with the same colors and lighting as"}.get(req.get("focus"), "based on")
                 prompt = f"A new image {focus} <ref_image_0>: {prompt}"
+            if p.get("nsfw") and (req.get("character") or images and p.get("ref_workflow")):
+                raise ValueError("В 18+ пресетах нельзя использовать персонажей и фото-референсы людей — только вымышленные персонажи из текста.")
+            if p.get("nsfw") and any(str(n).startswith("up_") for n in images):
+                # 18+ видео — только из картинок, созданных в студии (вымышленные персонажи), не из загруженных фото
+                raise ValueError("Для 18+ можно оживлять только картинки, созданные в студии. Загруженные фото здесь не принимаются.")
+            if p.get("prompt_template"):
+                prompt = p["prompt_template"].replace("{prompt}", prompt)
             if p.get("prompt_prefix"):
                 prompt = p["prompt_prefix"] + prompt
             if p.get("prompt_suffix"):
@@ -241,6 +248,22 @@ class JobManager:
             self.current = None
             self.push({"type": "job", "job": job.info()})
             self.push({"type": "queue", "queue": self.queue_info()})
+            self._maybe_notify(job)
+
+    def _maybe_notify(self, job):
+        """Уведомление Windows, когда очередь опустела (ночной режим) или долгая задача завершилась."""
+        from . import extras
+        if self.queue_info():
+            return
+        s = extras.get_settings()
+        batch = [j for j in self.jobs.values() if j.finished and j.finished > time.time() - 12 * 3600 and not getattr(j, "_notified", False)]
+        long_job = job.finished - (job.started or job.finished) > 60
+        if s.get("night_mode") or long_job:
+            ok = sum(1 for j in batch if j.state == "done")
+            bad = sum(1 for j in batch if j.state == "error")
+            extras.notify("Искра: всё готово", f"Готово задач: {ok}" + (f", с ошибкой: {bad}" if bad else ""))
+            for j in batch:
+                j._notified = True
 
     def _collect(self, job: Job, graph):
         h = json.loads(urllib.request.urlopen(f"{COMFY_URL}/history/{job.prompt_id}", timeout=30).read())[job.prompt_id]
@@ -254,7 +277,9 @@ class JobManager:
                     src = OUTPUT / rel
                     if not src.exists():
                         continue
-                    kind = "video" if src.suffix.lower() in (".mp4", ".webm", ".mov") else "3d" if src.suffix.lower() in (".glb", ".gltf", ".obj") else "image"
+                    if src.suffix.lower() == ".png":
+                        src, rel = convert_image(src, rel)
+                    kind ="video" if src.suffix.lower() in (".mp4", ".webm", ".mov") else "3d" if src.suffix.lower() in (".glb", ".gltf", ".obj") else "image"
                     w = hgt = None
                     thumb = None
                     try:
@@ -315,6 +340,25 @@ class JobManager:
         elif t == "execution_interrupted":
             job.state = "cancelled"
             job._done_evt.set()
+
+
+def convert_image(src, rel):
+    """Формат сохранения из настроек (PNG/WebP/JPG) и удаление метаданных workflow, если выключено."""
+    from . import extras
+    s = extras.get_settings()
+    fmt = s.get("save_format", "png")
+    if fmt == "png" and s.get("keep_metadata", True):
+        return src, rel
+    im = Image.open(src)
+    if fmt == "png":
+        im.save(src)  # пересохранение без текстовых блоков workflow
+        return src, rel
+    dst = src.with_suffix(".webp" if fmt == "webp" else ".jpg")
+    if im.mode in ("RGBA", "LA") and fmt == "jpg":
+        im = im.convert("RGB")
+    im.save(dst, quality=int(s.get("jpg_quality", 92)))
+    src.unlink()
+    return dst, rel.rsplit(".", 1)[0] + dst.suffix
 
 
 def make_thumb(src, kind):

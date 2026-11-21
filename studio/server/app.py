@@ -111,6 +111,20 @@ def generate(body: dict):
         body.setdefault("parent_id", it["id"])
         if it.get("width"):
             body.setdefault("src_w", it["width"]); body.setdefault("src_h", it["height"])
+    # промпт по-русски без помощника — переводим (модели лучше понимают английский)
+    import re as _re
+    if _re.search("[а-яё]", body.get("prompt") or "", _re.I):
+        p = presets.get(body.get("preset")) or {}
+        try:
+            r = prompter.generate(body["prompt"], p.get("assistant", "photo"), "exact", nsfw=bool(p.get("nsfw")))
+            if r.get("error") and p.get("nsfw"):
+                err(r["error"])
+            if r.get("prompt"):
+                body["prompt"] = r["prompt"]
+        except HTTPException:
+            raise
+        except Exception:
+            pass
     try:
         jobs = JM.build(body)
     except ValueError as e:
@@ -170,7 +184,8 @@ def assist(body: dict):
             err("Описатель картинок не отвечает. Проверьте статус Ollama в разделе «Система».")
     try:
         r = prompter.generate(body.get("text", ""), p.get("assistant", "photo"), body.get("mode", "improve"), nsfw=bool(p.get("nsfw")),
-                              reference=ref, focus=body.get("focus", "all"), style_hint=body.get("style_hint"))
+                              reference=ref, focus=body.get("focus", "all"), style_hint=body.get("style_hint"),
+                              lang=extras.get_settings().get("explain_lang", "ru"))
     except Exception:
         err("Помощник промптов не отвечает. Проверьте статус Ollama в разделе «Система».")
     if r.get("error"):
@@ -233,6 +248,202 @@ def set_key(body: dict):
         err("Неизвестный ключ")
     save_env_key(body["name"], body.get("value", "").strip())
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- настройки, PIN
+from . import extras  # noqa: E402
+from fastapi.responses import StreamingResponse  # noqa: E402
+
+
+@app.get("/api/settings")
+def get_settings():
+    return extras.public_settings()
+
+
+@app.put("/api/settings")
+def put_settings(body: dict):
+    return extras.save_settings(body)
+
+
+@app.post("/api/settings/reset")
+def reset_settings():
+    return extras.reset_settings()
+
+
+@app.post("/api/pin/set")
+def pin_set(body: dict):
+    try:
+        extras.set_pin(body.get("pin"), body.get("old"))
+    except ValueError as e:
+        err(str(e))
+    return {"ok": True}
+
+
+@app.post("/api/pin/check")
+def pin_check(body: dict):
+    if not extras.check_pin(body.get("pin")):
+        err("Неверный PIN")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- персонажи
+@app.get("/api/characters")
+def chars():
+    return extras.characters()
+
+
+@app.post("/api/characters")
+def char_save(body: dict):
+    if not body.get("name"):
+        err("Укажите имя персонажа")
+    return extras.save_character(body)
+
+
+@app.delete("/api/characters/{cid}")
+def char_del(cid: int):
+    extras.delete_character(cid)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- коллекции и экспорт
+@app.get("/api/collections")
+def colls():
+    return extras.collections()
+
+
+@app.post("/api/collections")
+def coll_create(body: dict):
+    if not body.get("name", "").strip():
+        err("Введите название коллекции")
+    return extras.create_collection(body["name"])
+
+
+@app.post("/api/collections/{cid}/add")
+def coll_add(cid: int, body: dict):
+    extras.add_to_collection(cid, body.get("ids", []))
+    return {"ok": True}
+
+
+@app.delete("/api/collections/{cid}")
+def coll_del(cid: int):
+    extras.delete_collection(cid)
+    return {"ok": True}
+
+
+@app.post("/api/export.zip")
+def export_zip(body: dict):
+    return StreamingResponse(extras.export_zip(body.get("ids", [])), media_type="application/zip",
+                             headers={"Content-Disposition": f"attachment; filename=iskra_{time.strftime('%Y%m%d_%H%M')}.zip"})
+
+
+@app.post("/api/items/restore/{item_id}")
+def restore(item_id: int):
+    return db.update_item(item_id, deleted=0)
+
+
+# ---------------------------------------------------------------- модели: каталог, установка, обновления
+@app.get("/api/models/search")
+def models_search(q: str = "", source: str = "civitai", kind: str = None, base: str = None, nsfw: int = 0, cursor: str = None):
+    try:
+        if source == "hf":
+            return catalog.hf_search(q or "comfyui", 24)
+        return catalog.civitai_search(q, kind or None, base or None, bool(nsfw), cursor=cursor)
+    except Exception:
+        err("Каталог не отвечает. Проверьте интернет и попробуйте ещё раз.")
+
+
+@app.post("/api/models/resolve")
+def models_resolve(body: dict):
+    try:
+        return catalog.resolve(body.get("link", ""))
+    except ValueError as e:
+        err(str(e))
+    except Exception:
+        err("Не удалось открыть ссылку. Проверьте её и интернет.")
+
+
+@app.post("/api/models/install")
+def models_install(body: dict):
+    if body.get("card"):
+        t = registry.install_civitai(body["card"])
+    elif body.get("file"):
+        t = registry.install_hf(body["file"], body.get("repo", ""), {"name": body["file"]["filename"]})
+    else:
+        err("Нечего устанавливать")
+    return t.info()
+
+
+@app.post("/api/models/downloads/{tid}/{action}")
+def dl_action(tid: str, action: str):
+    t = get_downloader().tasks.get(tid) or err("Загрузка не найдена", 404)
+    {"pause": t.pause, "resume": t.resume, "cancel": t.cancel}.get(action, lambda: None)()
+    get_downloader()._wake.set()
+    return t.info()
+
+
+@app.delete("/api/models/file/{rel:path}")
+def model_delete(rel: str):
+    try:
+        return {"trash": registry.delete(rel)}
+    except ValueError as e:
+        err(str(e))
+
+
+@app.get("/api/models/updates")
+def model_updates():
+    return registry.check_updates()
+
+
+@app.get("/api/models/recommended")
+def model_recommended():
+    js = ROOT / "model-picker" / "data.js"
+    import json as _j
+    return _j.loads(js.read_text(encoding="utf-8").split("=", 1)[1].strip().rstrip(";")) if js.exists() else []
+
+
+@app.get("/api/models/ollama")
+def model_ollama():
+    return prompter.installed_models()
+
+
+@app.post("/api/models/preset-from")
+def preset_from_model(body: dict):
+    """Пресет из рекомендованных настроек автора (для LoRA и чекпоинтов, установленных из каталога)."""
+    m = body.get("model", {})
+    base = (m.get("base_model") or "").lower()
+    fam = "sdxl" if any(x in base for x in ("sdxl", "pony", "illustrious", "noob")) else "krea2" if "krea" in base else "klein" if "flux.3" in base or "klein" in base else "anima" if "anima" in base else None
+    wf = {"sdxl": "sdxl_t2i", "krea2": "krea2_t2i", "klein": "klein_t2i", "anima": "anima_t2i"}.get(fam)
+    if not wf:
+        err("Для этой базовой модели пока нет готового workflow. Создайте пресет вручную в разделе «Пресеты».")
+    fname = m["file"].rsplit("/", 1)[-1]
+    p = {"name": m.get("name", fname)[:40], "group": "Мои", "nsfw": bool(m.get("nsfw")), "media": "image", "workflow": wf,
+         "assistant": "anime" if fam in ("sdxl", "anima") else "photo", "base_model": m.get("base_model"),
+         "megapixels": {"draft": 1.0, "quality": 1.0}, "params": {}, "description": "Создан из настроек автора модели."}
+    if m["file"].startswith("loras/"):
+        p["params"]["loras"] = [[fname, 0.8]]
+        if fam == "sdxl":
+            p["params"]["model"] = "OneObsession 24.safetensors"
+    elif fam == "sdxl":
+        p["params"]["model"] = fname
+    if m.get("trained_words"):
+        p["prompt_prefix"] = ", ".join(m["trained_words"][:3]) + ", "
+    return presets.save(p)
+
+
+# ---------------------------------------------------------------- система: логи, отчёт, бенчмарк
+@app.get("/api/system/logs/{name}")
+def sys_logs(name: str):
+    return extras.human_logs(name)
+
+
+@app.get("/api/system/report")
+def sys_report():
+    return {"text": extras.error_report()}
+
+
+@app.get("/api/system/bench")
+def sys_bench():
+    return extras.bench_table()
 
 
 # ---------------------------------------------------------------- WebSocket для интерфейса

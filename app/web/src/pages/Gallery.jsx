@@ -41,6 +41,10 @@ export default function Gallery() {
   const [lb, setLb] = useState(null);
   const [selecting, setSelecting] = useState(false);
   const [sel, setSel] = useState(new Set());
+  const [coll, setColl] = useState("");
+  const [colls, setColls] = useState([]);
+  const [trash, setTrash] = useState(false);
+  useEffect(() => { api.get("/api/collections").then(setColls).catch(() => {}); }, [galleryVersion]);
   const sentinel = useRef();
   const search = useRef();
   const loading = useRef(false);
@@ -54,8 +58,10 @@ export default function Gallery() {
     if (preset) u.set("preset", preset);
     if (rating) u.set("rating", rating);
     if (qDeb) u.set("q", qDeb);
+    if (coll) u.set("collection", coll);
+    if (trash) u.set("trash", 1);
     return u.toString();
-  }, [safeMode, kind, fav, preset, rating, qDeb]);
+  }, [safeMode, kind, fav, preset, rating, qDeb, coll, trash]);
   const load = useCallback(async (reset) => {
     if (loading.current) return;
     loading.current = true;
@@ -84,6 +90,20 @@ export default function Gallery() {
     toast(msg); setSel(new Set()); setSelecting(false); load(true);
   };
   const usedPresets = presets.filter((p) => !(safeMode && p.nsfw));
+  const toColl = async () => {
+    const name = window.prompt(`Название коллекции (существующие: ${colls.map((c) => c.name).join(", ") || "нет"}):`);
+    if (!name) return;
+    try {
+      const c = colls.find((x) => x.name === name.trim()) || (await api.post("/api/collections", { name }));
+      await api.post(`/api/collections/${c.id}/add`, { ids: [...sel] });
+      toast(`Добавлено в «${c.name}»: ${sel.size}`); setSel(new Set()); setSelecting(false); useStore.setState({ galleryVersion: galleryVersion + 1 });
+    } catch (e) { toast(e.message, "error"); }
+  };
+  const zip = async () => {
+    const r = await fetch("/api/export.zip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [...sel] }) });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = `iskra_${sel.size}.zip`; a.click();
+    toast("Архив готов");
+  };
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 md:px-6 flex flex-wrap gap-2 items-center border-b glass" style={{ borderColor: "var(--line)" }}>
@@ -97,11 +117,17 @@ export default function Gallery() {
         <select className="field !w-auto !py-1.5" value={preset} onChange={(e) => setPreset(e.target.value)}>
           <option value="">Все пресеты</option>{usedPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {colls.length > 0 && <select className="field !w-auto !py-1.5" value={coll} onChange={(e) => setColl(e.target.value)}>
+          <option value="">Все коллекции</option>{colls.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.n})</option>)}</select>}
+        <button className={`chip ${trash ? "on" : ""}`} onClick={() => setTrash(!trash)}><Trash2 size={14} />Корзина</button>
         <div className="flex-1" />
         {selecting ? <>
           <span className="text-sm muted">Выбрано: {sel.size}</span>
-          <button className="btn-ghost" disabled={!sel.size} onClick={() => bulk({ favorite: 1 }, "Добавлено в избранное")}><Heart size={15} />В избранное</button>
-          <button className="btn-ghost" disabled={!sel.size} onClick={() => bulk({ deleted: 1 }, "Перемещено в корзину")} style={{ color: "#ff6b6b" }}><Trash2 size={15} />В корзину</button>
+          {trash ? <button className="btn-ghost" disabled={!sel.size} onClick={() => bulk({ deleted: 0 }, "Восстановлено")}>Восстановить</button> : <>
+            <button className="btn-ghost" disabled={!sel.size} onClick={() => bulk({ favorite: 1 }, "Добавлено в избранное")}><Heart size={15} />В избранное</button>
+            <button className="btn-ghost" disabled={!sel.size} onClick={toColl}>В коллекцию</button>
+            <button className="btn-ghost" disabled={!sel.size} onClick={zip}>Скачать zip</button>
+            <button className="btn-ghost" disabled={!sel.size} onClick={() => bulk({ deleted: 1 }, "Перемещено в корзину (можно восстановить)")} style={{ color: "#ff6b6b" }}><Trash2 size={15} />В корзину</button></>}
           <button className="btn-ghost !px-2.5" onClick={() => { setSelecting(false); setSel(new Set()); }} aria-label="Отмена"><X size={15} /></button>
         </> : <button className="btn-ghost" onClick={() => setSelecting(true)}><CheckSquare size={15} />Выбрать</button>}
       </div>

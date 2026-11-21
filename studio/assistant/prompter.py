@@ -47,8 +47,10 @@ def _parse(text):
     return json.loads(m.group(0) if m else text)
 
 
-def generate(user_text, kind="photo", mode="improve", nsfw=False, reference=None, focus="all", style_hint=None, template=None):
+def generate(user_text, kind="photo", mode="improve", nsfw=False, reference=None, focus="all", style_hint=None, template=None, lang="ru"):
     """Возвращает {prompt, negative, explanation_ru} или {variants:[...]} или {error}."""
+    if lang == "en":
+        style_hint = (style_hint + ". " if style_hint else "") + "Write explanation_ru in English instead of Russian"
     refusal = safety.check_request(user_text, nsfw)
     if refusal:
         return {"error": refusal}

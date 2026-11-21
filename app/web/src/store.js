@@ -23,7 +23,14 @@ export const useStore = create((set, get) => ({
 
   setPage: (page) => { ls.set("page", page); set({ page }); },
   setTheme: (theme) => { ls.set("theme", theme); document.documentElement.classList.toggle("dark", theme === "dark"); set({ theme }); },
-  toggleSafe: () => { const v = !get().safeMode; ls.set("safeMode", v); set({ safeMode: v }); get().toast(v ? "Безопасный режим включён: 18+ скрыто" : "Безопасный режим выключен", "info"); },
+  settings: null,
+  pinAsk: false,
+  toggleSafe: (force) => {
+    const v = !get().safeMode;
+    if (!v && get().settings?.pin_set && !force) { set({ pinAsk: true }); return; }
+    ls.set("safeMode", v); set({ safeMode: v, pinAsk: false });
+    get().toast(v ? "Безопасный режим включён: 18+ скрыто" : "Безопасный режим выключен", "info");
+  },
   setDraft: (patch) => { const d = { ...get().draft, ...patch }; ls.set("draft", { ...d, text: d.text?.slice(0, 2000) }); set({ draft: d }); },
   toast: (text, kind = "ok") => {
     const id = Math.random().toString(36).slice(2);

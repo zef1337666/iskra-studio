@@ -1,17 +1,43 @@
 import React, { useEffect, useState } from "react";
-import { Sparkles, Images, SlidersHorizontal, Shield, ShieldOff, Sun, Moon, Cpu, Keyboard } from "lucide-react";
+import { Sparkles, Images, SlidersHorizontal, Shield, ShieldOff, Sun, Moon, Cpu, Keyboard, HardDrive, UserRound, Activity, Settings as Cog } from "lucide-react";
 import { useStore } from "./store";
 import { api } from "./api";
 import { Toasts, Tip, Modal } from "./components/ui";
 import Create from "./pages/Create";
 import Gallery from "./pages/Gallery";
 import Presets from "./pages/Presets";
+import Models from "./pages/Models";
+import Characters from "./pages/Characters";
+import System from "./pages/System";
+import Settings, { applyAccent } from "./pages/Settings";
+import Onboarding from "./components/Onboarding";
 
 const NAV = [
   { id: "create", label: "Создать", icon: Sparkles },
   { id: "gallery", label: "Галерея", icon: Images },
+  { id: "characters", label: "Персонажи", icon: UserRound },
   { id: "presets", label: "Пресеты", icon: SlidersHorizontal },
+  { id: "models", label: "Модели", icon: HardDrive },
+  { id: "system", label: "Система", icon: Activity, desk: true },
+  { id: "settings", label: "Настройки", icon: Cog, desk: true },
 ];
+
+function PinModal() {
+  const { pinAsk, toggleSafe } = useStore();
+  const [pin, setPin] = useState("");
+  const [bad, setBad] = useState(false);
+  const check = async () => { try { await api.post("/api/pin/check", { pin }); setPin(""); setBad(false); toggleSafe(true); } catch { setBad(true); } };
+  return (
+    <Modal open={pinAsk} onClose={() => useStore.setState({ pinAsk: false })} title="Введите PIN">
+      <div className="px-6 pb-6 space-y-3">
+        <div className="text-sm muted">Чтобы показать 18+ контент, введите PIN-код.</div>
+        <input autoFocus type="password" inputMode="numeric" className="field !text-center !text-2xl tracking-[.5em]" value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setBad(false); }} onKeyDown={(e) => e.key === "Enter" && check()} />
+        {bad && <div className="text-sm" style={{ color: "#ff6b6b" }}>Неверный PIN</div>}
+        <button className="btn-primary w-full" onClick={check}>Открыть</button>
+      </div>
+    </Modal>
+  );
+}
 
 const HOTKEYS = [["Ctrl + Enter", "Создать"], ["Ctrl + V", "Вставить картинку-референс"], ["Esc", "Отменить генерацию / закрыть"],
   ["← / →", "Листать в просмотре"], ["F", "В избранное"], ["U", "Апскейл"], ["S", "Безопасный режим"], ["/", "Поиск в галерее"], ["?", "Эта подсказка"]];
@@ -38,8 +64,11 @@ function StatusDots() {
 export default function App() {
   const { page, setPage, safeMode, toggleSafe, theme, setTheme, loadPresets } = useStore();
   const [help, setHelp] = useState(false);
+  const settings = useStore((s) => s.settings);
   useEffect(() => {
     loadPresets();
+    try { const a = localStorage.getItem("iskra_accent"); if (a) applyAccent(a); } catch {}
+    api.get("/api/settings").then((s) => useStore.setState({ settings: s })).catch(() => {});
     const poll = async () => { try { useStore.setState({ status: await api.get("/api/status") }); } catch {} };
     poll();
     const t = setInterval(poll, 4000);
@@ -64,7 +93,7 @@ export default function App() {
         </div>
         {NAV.map((n) => (
           <button key={n.id} onClick={() => setPage(n.id)}
-            className={`flex-1 md:flex-none flex flex-col md:flex-row items-center gap-1 md:gap-3 px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-medium transition ${page === n.id ? "text-white" : "muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]"}`}
+            className={`${n.desk ? "hidden md:flex" : "flex"} flex-1 md:flex-none flex-col md:flex-row items-center gap-1 md:gap-3 px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-medium transition ${page === n.id ? "text-white" : "muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]"}`}
             style={page === n.id ? { background: "linear-gradient(135deg, var(--color-accent), var(--color-accent-lo))" } : {}}>
             <n.icon size={18} />{n.label}
           </button>
@@ -85,8 +114,14 @@ export default function App() {
         {page === "create" && <Create />}
         {page === "gallery" && <Gallery />}
         {page === "presets" && <Presets />}
+        {page === "models" && <Models />}
+        {page === "characters" && <Characters />}
+        {page === "system" && <System />}
+        {page === "settings" && <Settings />}
       </main>
       <Toasts />
+      <PinModal />
+      {settings && !settings.onboarded && <Onboarding onDone={async () => useStore.setState({ settings: await api.put("/api/settings", { onboarded: true }) })} />}
       <Modal open={help} onClose={() => setHelp(false)} title="Горячие клавиши">
         <div className="px-6 pb-6 grid gap-2">
           {HOTKEYS.map(([k, v]) => <div key={k} className="flex justify-between text-sm"><span className="muted">{v}</span><kbd className="px-2 py-0.5 rounded-md text-xs font-mono" style={{ background: "var(--panel-2)", border: "1px solid var(--line)" }}>{k}</kbd></div>)}
