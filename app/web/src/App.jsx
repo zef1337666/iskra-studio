@@ -51,9 +51,9 @@ function StatusDots() {
   return (
     <div className="px-3 space-y-1.5 text-xs">
       {status.services.map((s) => (
-        <Tip key={s.name} side="right" className="flex" text={`${s.name}: ${ru[s.state] || s.state}${s.restarts ? `, перезапусков: ${s.restarts}` : ""}`}>
+        <div key={s.name}><Tip side="right" text={`${s.name}: ${ru[s.state] || s.state}${s.restarts ? `, перезапусков: ${s.restarts}` : ""}`}>
           <div className="flex items-center gap-2 muted"><span className="w-2 h-2 rounded-full" style={{ background: c[s.state] }} />{s.name === "ComfyUI" ? "Движок" : "Помощник"}</div>
-        </Tip>
+        </Tip></div>
       ))}
       {g && <Tip side="right" className="flex" text={`Видеокарта: загрузка ${g.util}%, ${g.temp}°C`}>
         <div className="flex items-center gap-2 muted"><Cpu size={12} />{(g.vram_used / 1024).toFixed(1)} / {(g.vram_total / 1024).toFixed(0)} ГБ</div></Tip>}

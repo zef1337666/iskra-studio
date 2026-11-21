@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Wand2, Languages, Dices, Layers, Loader2, X, Zap, Gem, Plus, Trash2, Lock, Unlock, SlidersHorizontal, Undo2,
-  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus } from "lucide-react";
+  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown } from "lucide-react";
 import { useStore } from "../store";
 import { api, thumbUrl, fileUrl } from "../api";
 import PresetPicker from "../components/PresetPicker";
@@ -16,6 +16,7 @@ const EXAMPLES = [
   { t: "Уютная кофейня дождливым вечером", p: "watercolor" },
   { t: "Аниме-девушка под дождём с прозрачным зонтом, неоновый город", p: "anime" },
 ];
+const GROUP_SHORT = { "Редактирование": "Правка" };
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem("iskra_" + k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("iskra_" + k, JSON.stringify(v)); } catch {} } };
 
 // ---------------------------------------------------------------- карточка задачи в работе
@@ -126,7 +127,9 @@ export default function Create() {
 
   const pick = (id) => { setDraft({ preset: id }); const r = [id, ...recent.filter((x) => x !== id)].slice(0, 8); setRecent(r); ls.set("recentPresets", r); };
   const visible = presets.filter((x) => !x.hidden && !(safeMode && x.nsfw));
-  const pills = [...recent.map((id) => visible.find((x) => x.id === id)).filter(Boolean), ...visible.filter((x) => !recent.includes(x.id))].slice(0, 9);
+  const groups = [...new Set(visible.map((x) => x.group))];
+  const [groupSel, setGroup] = useState(null);
+  const curGroup = groupSel && groups.includes(groupSel) ? groupSel : (p?.group && groups.includes(p.group) ? p.group : groups[0]);
   const media = p?.media || "image";
   const maxRefs = p?.requires === "images2" ? 2 : p?.id === "character" ? 3 : 1;
   const needsRef = ["image", "images2", "video"].includes(p?.requires);
@@ -217,7 +220,7 @@ export default function Create() {
 
       {/* ---------- строка ввода */}
       <div className="px-3 md:px-8 pb-3 md:pb-5 pt-2">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           {variants && <div className="glass rounded-2xl p-3 mb-2 space-y-1.5 animate-pop max-h-72 overflow-y-auto">
             <div className="flex justify-between items-center px-1"><span className="label">5 вариантов — выберите</span>
               <div className="flex gap-1"><button className="btn-ghost !h-7 !text-xs" onClick={async () => { for (const v of variants) await create(v.prompt); setVariants(null); }}>Создать все</button>
@@ -252,11 +255,14 @@ export default function Create() {
           </div>}
 
           <div className="glass rounded-3xl p-2 shadow-2xl">
-            {/* пресеты */}
-            <div className="flex gap-1.5 overflow-x-auto px-1 pb-2 pt-1" style={{ scrollbarWidth: "none" }}>
-              {pills.map((x) => <button key={x.id} onClick={() => pick(x.id)} className={`chip !h-8 shrink-0 ${x.id === p.id ? "on" : ""}`} style={x.nsfw && x.id === p.id ? { background: "var(--color-pink)", borderColor: "var(--color-pink)" } : {}}>{x.name}</button>)}
-              {!pills.find((x) => x.id === p.id) && <button className="chip on !h-8 shrink-0">{p.name}</button>}
-              <PresetPicker compact value={p.id} onChange={pick} />
+            {/* пресеты: вкладки групп + пресеты выбранной группы — всё всегда видно */}
+            <div className="flex items-center gap-1 px-1 pt-1 flex-wrap">
+              {groups.map((g) => <button key={g} onClick={() => { setGroup(g); if (p.group !== g) { const inG = visible.filter((x) => x.group === g); const last = recent.map((id) => inG.find((x) => x.id === id)).find(Boolean); if (last || inG[0]) pick((last || inG[0]).id); } }} className={`h-7 px-2.5 rounded-lg text-xs font-medium transition ${g === curGroup ? "text-[var(--text)] bg-[var(--panel-2)]" : "dim hover:text-[var(--text)]"}`}
+                style={g === "18+" && g === curGroup ? { color: "var(--color-pink)" } : {}}>{GROUP_SHORT[g] || g}</button>)}
+            </div>
+            <div className="flex gap-1.5 flex-wrap px-1 pt-1.5 pb-2">
+              {visible.filter((x) => x.group === curGroup).map((x) => <Tip key={x.id} text={x.description}><button onClick={() => pick(x.id)} className={`chip !h-8 ${x.id === p.id ? "on" : ""}`}
+                style={x.nsfw && x.id === p.id ? { background: "var(--color-pink)", borderColor: "var(--color-pink)" } : {}}>{x.name}</button></Tip>)}
             </div>
             {/* референсы */}
             {refs.length > 0 && <div className="flex gap-2 px-2 pb-2">{refs.map((r, i) => (
@@ -270,25 +276,25 @@ export default function Create() {
                   <span>Подтверждаю: на картинке вымышленный взрослый персонаж, созданный ИИ (спрошу один раз)</span></label>}
             </div>}
             {/* ввод */}
-            <div className="flex items-end gap-2 px-1">
+            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 px-1">
               <Tip text={needsRef ? "Добавить исходную картинку (или Ctrl+V / перетащить)" : "Картинка-референс (или Ctrl+V / перетащить)"}>
                 <button className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" onClick={() => fileIn.current.click()} aria-label="Добавить картинку">
                   {busy === "upload" ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={19} />}</button></Tip>
               <textarea ref={ta} value={draft.text} rows={1} onChange={(e) => setDraft({ text: e.target.value })}
                 placeholder={p.workflow === "klein_edit" ? "Что изменить? «сделай ночь», «добавь очки»…" : media === "video" ? "Что происходит в видео?" : "Опишите, что хотите увидеть…"}
-                className="flex-1 bg-transparent resize-none outline-none py-2.5 text-[15px] leading-relaxed max-h-56" style={{ color: "var(--text)" }} />
+                className="order-first sm:order-none basis-full sm:basis-auto flex-1 bg-transparent resize-none outline-none py-2.5 px-1 sm:px-0 text-[15px] leading-relaxed max-h-56" style={{ color: "var(--text)" }} />
               {original !== null && <Tip text="Вернуть мой текст"><button className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center muted hover:bg-[var(--panel-2)]" onClick={() => { setDraft({ text: original }); setOriginal(null); }}><Undo2 size={17} /></button></Tip>}
-              <div className="relative shrink-0">
-                <Tip text="Улучшить промпт по официальным рекомендациям модели"><button className="h-10 px-3 rounded-xl flex items-center gap-1.5 text-sm muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" onClick={() => assist("improve")} onContextMenu={(e) => { e.preventDefault(); setMenu(!menu); }} disabled={!!busy && busy !== "upload"}>
+              <div className="relative shrink-0 flex h-10 rounded-xl" style={{ border: "1px solid var(--line)" }}>
+                <Tip text="Улучшить промпт по официальным рекомендациям модели"><button className="h-full px-3 rounded-l-xl flex items-center gap-1.5 text-sm muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" onClick={() => assist("improve")} disabled={!!busy && busy !== "upload"}>
                   {["improve", "exact", "surprise", "variants"].includes(busy) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span className="hidden sm:inline">Улучшить</span></button></Tip>
-                <button className="absolute -right-1 -top-1 w-5 h-5 rounded-full text-[10px] bg-[var(--panel-2)] muted" onClick={() => setMenu(!menu)} aria-label="Другие режимы">▾</button>
+                <Tip text="Другие режимы: точно как написал, удиви меня, 5 вариантов"><button className="h-full px-2 rounded-r-xl muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" style={{ borderLeft: "1px solid var(--line)" }} onClick={() => setMenu(!menu)} aria-label="Другие режимы"><ChevronDown size={15} /></button></Tip>
                 {menu && <div className="absolute bottom-12 right-0 panel rounded-2xl p-1.5 w-56 shadow-2xl animate-pop z-20">
                   {[["exact", "Точно как написал", Languages], ["surprise", "Удиви меня", Dices], ["variants", "5 вариантов", Layers]].map(([m, l, I]) =>
                     <button key={m} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-[var(--panel-2)]" onClick={() => assist(m)}><I size={15} />{l}</button>)}
                 </div>}
               </div>
               <Tip text="Настройки: фотостиль, видео, seed, LoRA…"><button className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center hover:bg-[var(--panel-2)] ${panel ? "text-[var(--color-accent-hi)]" : "muted"}`} onClick={() => setPanel(!panel)} aria-label="Настройки"><SlidersHorizontal size={17} /></button></Tip>
-              <button className="btn-primary !h-10 !rounded-xl !px-5 shrink-0" onClick={() => create()} disabled={busy === "create"}>{busy === "create" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}<span className="hidden sm:inline">Создать</span></button>
+              <button className="btn-primary !h-10 !rounded-xl !px-5 shrink-0 ml-auto sm:ml-0" onClick={() => create()} disabled={busy === "create"}>{busy === "create" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}<span className="hidden sm:inline">Создать</span></button>
             </div>
             {/* режим, пропорции, количество */}
             <div className="flex items-center gap-2 px-2 pt-2 pb-1 text-xs flex-wrap">
