@@ -6,7 +6,8 @@ from . import db
 SETTINGS_FILE = DATA / "settings.json"
 DEFAULTS = {"default_mode": "quality", "save_format": "png", "jpg_quality": 92, "keep_metadata": True, "explain_lang": "ru",
             "notify_windows": True, "pin_hash": None, "onboarded": False, "night_mode": False,
-            "phone_access": False, "phone_pass_hash": None, "telegram_enabled": False, "telegram_chat_id": None}
+            "phone_access": False, "phone_pass_hash": None, "telegram_enabled": False, "telegram_chat_id": None,
+            "uploads_attested": False}
 SECRET_KEYS = ("pin_hash", "phone_pass_hash")
 
 

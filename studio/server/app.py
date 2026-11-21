@@ -246,15 +246,26 @@ async def upload(file: UploadFile = File(...)):
 def assist(body: dict):
     p = presets.get(body.get("preset")) or {}
     ref = None
-    if body.get("reference"):
+    if body.get("reference") and p.get("workflow") not in ("klein_edit", "klein_outpaint", "detailer"):  # правке картинка передаётся напрямую
         try:
             ref = vision.describe(str(INPUT / body["reference"]), body.get("focus", "all"), nsfw=bool(p.get("nsfw")))["text"]
         except Exception:
             err("Описатель картинок не отвечает. Проверьте статус Ollama в разделе «Система».")
     try:
-        r = prompter.generate(body.get("text", ""), p.get("assistant", "photo"), body.get("mode", "improve"), nsfw=bool(p.get("nsfw")),
-                              reference=ref, focus=body.get("focus", "all"), style_hint=body.get("style_hint"),
-                              lang=extras.get_settings().get("explain_lang", "ru"))
+        wf = p.get("workflow")
+        if wf in prompter.OFFICIAL_BY_WORKFLOW:
+            imgs = [str(INPUT / n) for n in (body.get("images") or [])]
+            # стиль пресета (акварель, тёмная кисть…) должен попасть в промпт, иначе помощник выберет фото
+            style = ", ".join(x for x in (p.get("style"), (p.get("prompt_suffix") or "").strip(", "), body.get("style_hint")) if x) or None
+            if not style and p.get("params", {}).get("loras") and p.get("group") == "Арт":
+                style = f"{p.get('name')} style ({p.get('description', '')})"
+            r = prompter.generate_official(body.get("text", ""), wf, body.get("mode", "improve"), nsfw=bool(p.get("nsfw")), aspect=body.get("aspect"),
+                                           images=imgs, reference=ref if wf != "klein_edit" else None, style_hint=style,
+                                           seconds=body.get("seconds"), camera=body.get("camera"))
+        else:  # аниме-теги и прочее — прежний шаблон
+            r = prompter.generate(body.get("text", ""), p.get("assistant", "photo"), body.get("mode", "improve"), nsfw=bool(p.get("nsfw")),
+                                  reference=ref, focus=body.get("focus", "all"), style_hint=body.get("style_hint"),
+                                  lang=extras.get_settings().get("explain_lang", "ru"))
     except Exception:
         err("Помощник промптов не отвечает. Проверьте статус Ollama в разделе «Система».")
     if r.get("error"):

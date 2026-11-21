@@ -112,7 +112,8 @@ export default function Create() {
     if (!draft.text.trim() && mode !== "surprise" && !refs.length) { toast("Сначала опишите идею в поле выше", "info"); ta.current?.focus(); return; }
     setBusy(mode); setVariants(null);
     try {
-      const r = await api.post("/api/assist", { text: draft.text, preset: p.id, mode, reference: refs[0]?.name, focus, style_hint: chip?.hint });
+      const r = await api.post("/api/assist", { text: draft.text, preset: p.id, mode, reference: refs[0]?.name, focus, style_hint: chip?.hint,
+        aspect: draft.aspect, images: refs.map((x) => x.name).filter(Boolean), seconds, camera });
       if (mode === "variants") { setVariants(r.variants); }
       else { setPrompt(r.prompt); setNegative(r.negative || ""); setExplain(r.explanation_ru || ""); setShowPrompt(true); }
     } catch (e) { toast(e.message, "error"); }
@@ -186,12 +187,11 @@ export default function Create() {
               <option value="">— без персонажа —</option>{chars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
           <RefDrop refs={refs} setRefs={setRefs} max={maxRefs} accept={p.requires === "video" ? "video" : "image"}
             label={p.requires === "images2" ? "Первый и последний кадр" : p.id === "character" ? "Референсы персонажа (1–3)" : needsRef ? "Исходная картинка" : "Картинка-референс (необязательно)"} />
-          {p.nsfw && refs.some((r) => r.name?.startsWith("up_")) && <div className="rounded-xl p-3 text-xs space-y-2 animate-fade-in" style={{ background: "rgba(255,95,162,.08)", border: "1px solid rgba(255,95,162,.3)" }}>
+          {p.nsfw && refs.some((r) => r.name?.startsWith("up_")) && !useStore.getState().settings?.uploads_attested && <div className="rounded-xl p-3 text-xs space-y-2 animate-fade-in" style={{ background: "rgba(255,95,162,.08)", border: "1px solid rgba(255,95,162,.3)" }}>
             {refs.filter((r) => r.name?.startsWith("up_")).every((r) => r.ai)
               ? <div style={{ color: "#3ecf8e" }}>В файле найдена метка «создано ИИ» — картинку можно использовать.</div>
-              : <label className="flex gap-2 items-start cursor-pointer"><input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5 accent-[var(--color-pink)]" />
-                  <span>Подтверждаю: на картинке <b>вымышленный взрослый персонаж, созданный ИИ</b>, а не фото реального человека. Использовать фото реальных людей без их согласия нельзя.</span></label>}
-            <div className="dim">Перед генерацией студия проверит возраст на картинке (около 20 секунд). Если человек выглядит моложе 20 лет, картинку использовать нельзя.</div>
+              : <label className="flex gap-2 items-start cursor-pointer"><input type="checkbox" checked={attest} onChange={async (e) => { setAttest(e.target.checked); if (e.target.checked) useStore.setState({ settings: await api.put("/api/settings", { uploads_attested: true }) }); }} className="mt-0.5 accent-[var(--color-pink)]" />
+                  <span>Подтверждаю: на картинке <b>вымышленный взрослый персонаж, созданный ИИ</b>, а не фото реального человека. Отмечается один раз — больше спрашивать не буду.</span></label>}
           </div>}
           {refs.length > 0 && !needsRef && <div className="space-y-2.5 animate-fade-in">
             <div className="label">Что взять с картинки</div>

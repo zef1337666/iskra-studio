@@ -127,7 +127,8 @@ class JobManager:
                         continue
                     inf = provenance.info(n)
                     # загруженная картинка в 18+: нужна метка «создано ИИ» или явное подтверждение пользователя
-                    if not inf.get("ai") and not req.get("attest_fictional"):
+                    from .extras import get_settings
+                    if not inf.get("ai") and not req.get("attest_fictional") and not get_settings().get("uploads_attested"):
                         raise ValueError("Для 18+ подтвердите, что на загруженной картинке вымышленный взрослый персонаж, созданный ИИ, "
                                          "а не фото реального человека (галочка под картинкой).")
                     if inf.get("age") is None or inf["age"] < 20:
