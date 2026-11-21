@@ -184,11 +184,13 @@ def krea2_t2i(p, mode="quality"):
     vae = g.add("VAELoader", "VAE", vae_name="qwen_image_vae.safetensors")
     model, _ = _loras(g, unet.out, p.get("loras"))
     pos = g.add("CLIPTextEncode", "Промпт", clip=clip.out, text=p["prompt"])
-    neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
+    cfg = float(p.get("cfg") or 1.0)  # Turbo-модели — CFG 1 (негатив не нужен); не-Turbo (Real Dream) — CFG > 1 с настоящим негативом
+    neg = (g.add("CLIPTextEncode", "Негатив", clip=clip.out, text=p.get("negative") or "blurry, lowres, deformed, bad anatomy, extra fingers, watermark")
+           if cfg > 1 else g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out))
     lat = g.add("EmptyLatentImage", "Размер", width=w, height=h, batch_size=int(p.get("batch", 1)))
     steps = int(p.get("steps") or 8)
     ks = g.add("KSampler", "Генерация", model=model, positive=pos.out, negative=neg.out, latent_image=lat.out, seed=seed,
-               steps=steps, cfg=1.0, sampler_name=p.get("sampler", "euler"), scheduler=p.get("scheduler", "simple"), denoise=1.0)
+               steps=steps, cfg=cfg, sampler_name=p.get("sampler", "euler"), scheduler=p.get("scheduler", "simple"), denoise=1.0)
     img = g.add("VAEDecode", "Декодирование", samples=ks.out, vae=vae.out).out
     if mode == "quality" and p.get("hires", False):
         img = _hires_pixels(g, img, model, pos.out, neg.out, vae.out, seed, float(p.get("hires_scale", 1.5)), float(p.get("hires_denoise", 0.3)), 4, 1.0, "euler", "simple")
@@ -345,7 +347,7 @@ def h3_video(p, mode="quality"):
     """Текст → видео (без картинок), картинка → видео (1), первый+последний кадр (2). 24 к/с, звук генерируется сам."""
     g = Graph()
     seed = _seed(p)
-    unet = g.add("UNETLoader", "MiniMax-H3 (w6a8)", unet_name="minimax_h3_fl2va_pruned_w6a8.safetensors", weight_dtype="default").out
+    unet = g.add("UNETLoader", "MiniMax-H3", unet_name=p.get("model", "minimax_h3_fl2va_pruned_w6a8.safetensors"), weight_dtype="default").out
     if mode == "draft" or p.get("turbo"):
         unet, _ = _loras(g, unet, [["minimax_h3_turbo_8step_v1.2.safetensors", 1.0]])
     clip = g.add("CLIPLoader", "Текстовый энкодер", clip_name="qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", type="minimax", device="default")

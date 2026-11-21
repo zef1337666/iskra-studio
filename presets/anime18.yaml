@@ -1,7 +1,7 @@
 id: anime18
 name: Аниме 18+
 group: 18+
-order: 3
+order: 7
 nsfw: true
 media: image
 workflow: sdxl_t2i

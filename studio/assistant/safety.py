@@ -33,13 +33,15 @@ def check_request(text: str, nsfw: bool):
     return None
 
 
+ADULT_NOUN_RE = re.compile(r"\b(woman|women|man|men|lady|ladies|guy|wife|husband|girlfriend|boyfriend|milf|1woman|1man)\b|\b(1[89]|[2-9]\d)[ -]?(years?[ -]old|yo)\b|\bin (her|his|their) (20|30|40|50)s\b|\badult\b", re.I)
+
+
 def enforce_adult(prompt: str, negative: str, anime: bool = False):
-    """Гарантирует явный взрослый возраст и защитный негатив в 18+ пресетах."""
+    """18+: не пропускаем несовершеннолетних. Ничего лишнего не дописываем — приписки «mature»/«25+» портили результат
+    (старили лица), поэтому только одно слово «adult», и только если в промпте нет ни взрослого существительного, ни возраста."""
     if _minor_re.search(prompt or ""):
         return None, None  # модель-помощник выдала недопустимое — не используем
-    if not ADULT_RE.search(prompt or ""):
-        prompt = ("adult, mature, " if anime else "adult (25+ years old), ") + (prompt or "")
-    if anime and "adult" not in prompt.lower():
-        prompt = "adult, mature, " + prompt
-    neg = (negative + ", " if negative else "") + NSFW_NEGATIVE
+    if not ADULT_NOUN_RE.search(prompt or ""):
+        prompt = "adult, " + (prompt or "")
+    neg = (negative + ", " if negative else "") + NSFW_NEGATIVE if anime else negative  # негатив нужен только моделям с CFG>1
     return prompt, neg

@@ -1,24 +1,25 @@
 id: real18-candid
 name: Реализм 18+ (любительское)
 group: 18+
-order: 2
+order: 3
 nsfw: true
 media: image
 workflow: krea2_t2i
 assistant: photo18
-base_model: Krea 2
+base_model: FinePorn V6.1 + FameGrid
 params:
+  model: FinePorn_V6.1_FP8.safetensors
+  sampler: er_sde
+  scheduler: beta
   loras:
   - - Famegrid-Spice-Preview-V2.safetensors
-    - 0.75
+    - 0.6
 megapixels:
   draft: 1.0
   quality: 1.3
 eta:
-  draft: 9
-  quality: 14
-negative: cartoon, anime, 3d render, plastic skin, waxy skin, airbrushed, extra fingers,
-  deformed hands, bad anatomy, distorted body
+  draft: 12
+  quality: 18
 chips:
 - label: Студийный свет
   hint: professional studio lighting, softbox key light, clean backdrop
@@ -32,5 +33,9 @@ chips:
   hint: 35mm film photo, Kodak Portra colors, film grain
 - label: Глянец
   hint: glossy magazine photoshoot, editorial fashion lighting, high-end retouch
-prompt_prefix: 'famegrid, natural face, candid photo, '
+prompt_prefix: 'famegrid, candid photo, '
 description: Естественные «любительские» снимки взрослых персонажей.
+draft:
+  steps: 8
+quality:
+  steps: 10

@@ -52,8 +52,9 @@ OFFICIAL_BY_WORKFLOW = {"klein_t2i": "official_klein", "zimage_control": "offici
                         "klein_outpaint": "official_klein_edit", "detailer": "official_klein_edit", "krea2_t2i": "official_krea2",
                         "h3_video": "official_h3", "wan22_video": "official_wan"}
 NSFW_NOTE = ("\n\nThis is a private adult (18+) preset on the user's own computer: explicit content between consenting fictional adults "
-             "is allowed — describe it plainly and concretely, without euphemisms. Every person must be clearly an adult: state an age of 21 or older. "
-             "Never describe anyone as childlike, a teen or a minor.")
+             "is allowed — describe it plainly and concretely, without euphemisms. People are young adults: write the age explicitly, "
+             "about 20 to 30 years old unless the user asks for another adult age. Never describe anyone as childlike, a teen or a minor. "
+             "Do not add skin-aging details (wrinkles, pores emphasis, age spots) unless asked.")
 
 
 def _clean(text):
