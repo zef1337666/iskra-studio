@@ -1,4 +1,4 @@
-photo_real/flux3-klein-nvfp4
+﻿photo_real/flux3-klein-nvfp4
 photo_anime/anima-turbo-v1.1
 photo_style/krea2-turbo-style-loras
 edit/flux3-klein-edit
@@ -15,7 +15,6 @@ video_flf/wan22-flf-fp8
 video_enhance/rife-4-26
 video_audio/mmaudio-large-44k
 3d/pixal3d-int8
-nsfw_real/biglove-krealife3-fp8
 nsfw_real_boost/realistic-snapshot-krea2
 nsfw_real_boost/famegrid-krea2
 nsfw_anime/oneobsession-illustrious-v25

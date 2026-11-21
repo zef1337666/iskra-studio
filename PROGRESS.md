@@ -105,3 +105,5 @@
 - Аниме: Anima Turbo. Стили: Krea 2 + LoRA. Поза: Z-Image + ControlNet.
 - Видео (текст/картинка/первый+последний кадр, со звуком): MiniMax-H3 (черновик turbo-LoRA). Wan 2.2 — запасной и для 18+ (NSFW Q6, SmoothMix).
 - Звук к готовому видео: MMAudio. Плавность: RIFE. Апскейл: SeedVR2. Фон: BiRefNet. 3D: Pixal3D.
+
+- 2026-11-20: Big Love исключён по решению пользователя (Civitai не отдаёт ни одну версию). 18+ реализм = Krea 2 Turbo + Realistic Snapshot / FameGrid. One Obsession: v25 закрыта, v24 скачивается — ждёт решения.
