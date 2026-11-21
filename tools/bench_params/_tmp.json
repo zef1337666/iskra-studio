@@ -1,1 +1,1 @@
-﻿{"folder":"lora_test","name":"test_ivn","steps":30,"rank":16,"seed":1,"resolution":512}
+﻿{"width":1024,"prompt":"photo of ivn man as an astronaut inside a space station, floating, earth visible through the window","loras":[["characters\\ivn400.safetensors",1.3]],"prefix":"test/lora_on_1.3","seed":77,"height":1024}

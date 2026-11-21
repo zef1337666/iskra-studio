@@ -23,3 +23,6 @@ app/web/node_modules/
 *.part
 *.bad
 backups/
+tools/ai-toolkit/
+data/training/
+data/training_sets/

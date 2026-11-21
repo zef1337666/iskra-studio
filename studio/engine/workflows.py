@@ -38,17 +38,23 @@ def _face_detailer(g, img, model, clip, vae, pos, neg, seed, steps=8, denoise=0.
 
 
 # ---------------------------------------------------------------- FLUX.3 Klein
-def _klein_base(g, mode):
+class _M:  # модель после цепочки LoRA (совместима с .out)
+    def __init__(self, out):
+        self.out = out
+
+
+def _klein_base(g, mode, loras=None):
     unet = g.add("UNETLoader", "Модель Klein", unet_name=KLEIN[mode], weight_dtype="default")
     clip = g.add("CLIPLoader", "Текстовый энкодер", clip_name=KLEIN_TE, type="flux3", device="default")
     vae = g.add("VAELoader", "VAE", vae_name=FLUX2_VAE)
-    return unet, clip, vae
+    model, _ = _loras(g, unet.out, loras)  # LoRA пресета / обученного персонажа
+    return _M(model), clip, vae
 
 
 def klein_t2i(p, mode="quality"):
     g = Graph()
     seed, (w, h) = _seed(p), _size(p)
-    unet, clip, vae = _klein_base(g, mode)
+    unet, clip, vae = _klein_base(g, mode, p.get("loras"))
     pos = g.add("CLIPTextEncode", "Промпт", clip=clip.out, text=p["prompt"])
     neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
     lat = g.add("EmptyFlux2LatentImage", "Размер", width=w, height=h, batch_size=int(p.get("batch", 1)))
@@ -73,7 +79,7 @@ def klein_edit(p, mode="quality"):
     """Редактирование по команде / персонаж: p['images'] — имена файлов во входной папке (1–3 референса)."""
     g = Graph()
     seed = _seed(p)
-    unet, clip, vae = _klein_base(g, mode)
+    unet, clip, vae = _klein_base(g, mode, p.get("loras"))
     pos = g.add("CLIPTextEncode", "Инструкция", clip=clip.out, text=p["prompt"])
     neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
     refs = {}
@@ -103,7 +109,7 @@ def klein_outpaint(p, mode="quality"):
     """Расширение кадра: поля left/top/right/bottom в пикселях."""
     g = Graph()
     seed = _seed(p)
-    unet, clip, vae = _klein_base(g, mode)
+    unet, clip, vae = _klein_base(g, mode, p.get("loras"))
     # Серые поля модель копирует как есть, поэтому даём исходник референсом и просим более широкий кадр на холсте целевого размера
     src = g.add("LoadImage", "Исходник", image=p["images"][0])
     sw, sh = int(p["src_w"]), int(p["src_h"])

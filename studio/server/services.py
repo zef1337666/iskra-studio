@@ -40,6 +40,10 @@ class Service:
                 self.proc.wait(10)
             except Exception:
                 self.proc.kill()
+        if self.name == "ComfyUI" and _alive(self.health_url):  # запущен не студией — останавливаем по командной строке
+            subprocess.run(["powershell", "-NoProfile", "-Command",
+                            "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -like '*ComfyUI\\main.py*' } | "
+                            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"], creationflags=CREATE_NO_WINDOW, timeout=30)
         self.state = "stopped"
 
     def restart(self):

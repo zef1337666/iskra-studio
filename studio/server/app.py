@@ -1,5 +1,5 @@
 """Backend студии «Искра»: FastAPI + WebSocket. Запуск: python -m studio.server.app"""
-import asyncio, os, shutil, sys, time
+import asyncio, os, pathlib, shutil, sys, time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -151,6 +151,8 @@ def set_cover(pid: str, item_id: int):
 # ---------------------------------------------------------------- генерация и очередь
 @app.post("/api/generate")
 def generate(body: dict):
+    if TRAIN.get("phase") in ("captions", "stopping_engine", "training"):
+        err("Сейчас идёт обучение LoRA — видеокарта занята. Генерация станет доступна после его окончания (прогресс — в «Персонажах»).")
     if body.get("source_item"):
         it = db.get_item(int(body["source_item"])) or err("Исходный результат не найден", 404)
         key = "videos" if it["kind"] == "video" else "images"
@@ -530,6 +532,90 @@ def tg_test():
         err(str(e))
     except Exception:
         err("Не удалось отправить сообщение. Проверьте токен.")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- обучение LoRA персонажа (ai-toolkit)
+TRAIN = {"t": None, "phase": None, "error": None, "captioned": 0, "total": 0, "name": None}
+
+
+def _train_pipeline(name, trigger, images, steps, character_id):
+    from .. import trainer
+    import re as _re
+    TRAIN.update(phase="captions", error=None, captioned=0, total=len(images), name=name, t=None)
+    ds = DATA / "training_sets" / name
+    if ds.exists():
+        shutil.rmtree(ds)
+    ds.mkdir(parents=True)
+    try:
+        for i, img in enumerate(images):
+            dst = ds / f"img{i:02d}{pathlib.Path(img).suffix or '.png'}"
+            shutil.copy(INPUT / img, dst)
+            try:
+                d = vision.describe(str(dst), "all")["text"]
+                d = _re.sub(r"(?i)\b(the|a|an) (man|woman|person|boy|girl)\b", "the person", d)[:600]
+            except Exception:
+                d = "a photo"
+            (ds / (dst.stem + ".txt")).write_text(f"photo of {trigger} person. {d}", encoding="utf-8")
+            TRAIN["captioned"] = i + 1
+        TRAIN["phase"] = "stopping_engine"
+        services.COMFY.stop()  # видеокарта нужна обучению целиком
+        time.sleep(3)
+
+        def done(t):
+            p = presets.save({"id": f"char-{name}", "name": f"Персонаж: {name}", "group": "Мои", "media": "image", "workflow": "klein_t2i",
+                              "assistant": "photo", "base_model": "FLUX.3 Klein + LoRA", "params": {"loras": [[t.lora, 1.0]]},
+                              "megapixels": {"draft": 1.0, "quality": 1.5}, "eta": {"draft": 6, "quality": 11},
+                              "prompt_prefix": f"photo of {trigger} person, ", "description": f"Обученная LoRA персонажа «{name}» (слово-триггер {trigger})."})
+            if character_id:
+                ch = next((c for c in extras.characters() if c["id"] == int(character_id)), None)
+                if ch:
+                    ch["description"] = (ch.get("description") or "") + f" [LoRA: {t.lora}, триггер {trigger}]"
+                    extras.save_character(ch)
+            extras.notify("Искра: LoRA готова", f"Персонаж «{name}» обучен — пресет «{p['name']}» в группе «Мои».")
+        t = trainer.Training(name, ds, steps, trigger, on_done=done)
+        TRAIN.update(phase="training", t=t)
+        t.start()
+        while t.state not in ("done", "error", "cancelled"):
+            time.sleep(3)
+    except Exception as e:
+        TRAIN["error"] = f"Не удалось подготовить обучение: {e}"
+    finally:
+        services.COMFY.want = True
+        services.COMFY.start()
+        TRAIN["phase"] = "finished"
+
+
+@app.post("/api/train/start")
+def train_start(body: dict):
+    import re as _re, threading
+    if TRAIN.get("phase") not in (None, "finished"):
+        err("Обучение уже идёт.")
+    if JM.queue_info():
+        err("Дождитесь окончания задач в очереди: на время обучения генерация останавливается.")
+    name = _re.sub(r"[^a-z0-9_]+", "_", (body.get("name") or "").lower().translate(str.maketrans("абвгдеёжзийклмнопрстуфхцчшщыэюя", "abvgdeejzijklmnoprstufhccss_eua"))).strip("_")
+    imgs = [x for x in body.get("images", []) if x]
+    if not name:
+        err("Укажите имя латиницей или кириллицей.")
+    if len(imgs) < 8:
+        err("Нужно минимум 8 картинок персонажа (лучше 15–30): разные ракурсы, свет и одежда.")
+    trigger = "zx" + name[:6].replace("_", "")
+    steps = max(300, min(2500, int(body.get("steps", 1000))))
+    threading.Thread(target=_train_pipeline, args=(name, trigger, imgs, steps, body.get("character_id")), daemon=True).start()
+    return {"ok": True, "name": name, "trigger": trigger, "steps": steps}
+
+
+@app.get("/api/train/status")
+def train_status():
+    t = TRAIN.get("t")
+    return {"phase": TRAIN.get("phase"), "name": TRAIN.get("name"), "captioned": TRAIN.get("captioned"), "total": TRAIN.get("total"),
+            "error": TRAIN.get("error"), "train": t.info() if t else None}
+
+
+@app.post("/api/train/cancel")
+def train_cancel():
+    if TRAIN.get("t"):
+        TRAIN["t"].cancel()
     return {"ok": True}
 
 
