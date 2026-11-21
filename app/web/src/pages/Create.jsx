@@ -84,6 +84,7 @@ export default function Create() {
   const [busy, setBusy] = useState(null);
   const [lb, setLb] = useState(null);
   const [character, setCharacter] = useState(null);
+  const [attest, setAttest] = useState(false);
   const [chars, setChars] = useState([]);
   const ta = useRef();
   useEffect(() => { api.get("/api/characters").then(setChars).catch(() => {}); }, []);
@@ -119,7 +120,7 @@ export default function Create() {
   };
 
   const body = (overPrompt) => ({
-    preset: p.id, mode: draft.mode, aspect: draft.aspect, count: draft.count, user_text: draft.text, character: character?.id,
+    preset: p.id, mode: draft.mode, aspect: draft.aspect, count: draft.count, user_text: draft.text, character: character?.id, attest_fictional: attest,
     prompt: (overPrompt ?? prompt) || (draft.text + (chip ? `, ${chip.hint}` : "") + (character?.description ? `. ${character.description}` : "")), negative,
     images: refs.map((r) => r.name).filter(Boolean), focus, ref_strength: strength,
     seed: seed ? Number(seed) : undefined, seed_lock: seedLock, steps: steps ? Number(steps) : undefined, cfg: cfg ? Number(cfg) : undefined,
@@ -185,6 +186,13 @@ export default function Create() {
               <option value="">— без персонажа —</option>{chars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
           <RefDrop refs={refs} setRefs={setRefs} max={maxRefs} accept={p.requires === "video" ? "video" : "image"}
             label={p.requires === "images2" ? "Первый и последний кадр" : p.id === "character" ? "Референсы персонажа (1–3)" : needsRef ? "Исходная картинка" : "Картинка-референс (необязательно)"} />
+          {p.nsfw && refs.some((r) => r.name?.startsWith("up_")) && <div className="rounded-xl p-3 text-xs space-y-2 animate-fade-in" style={{ background: "rgba(255,95,162,.08)", border: "1px solid rgba(255,95,162,.3)" }}>
+            {refs.filter((r) => r.name?.startsWith("up_")).every((r) => r.ai)
+              ? <div style={{ color: "#3ecf8e" }}>В файле найдена метка «создано ИИ» — картинку можно использовать.</div>
+              : <label className="flex gap-2 items-start cursor-pointer"><input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5 accent-[var(--color-pink)]" />
+                  <span>Подтверждаю: на картинке <b>вымышленный взрослый персонаж, созданный ИИ</b>, а не фото реального человека. Использовать фото реальных людей без их согласия нельзя.</span></label>}
+            <div className="dim">Перед генерацией студия проверит возраст на картинке (около 20 секунд). Если человек выглядит моложе 20 лет, картинку использовать нельзя.</div>
+          </div>}
           {refs.length > 0 && !needsRef && <div className="space-y-2.5 animate-fade-in">
             <div className="label">Что взять с картинки</div>
             <FocusChips value={focus} onChange={setFocus} />

@@ -160,6 +160,17 @@ def generate(body: dict):
         body.setdefault("parent_id", it["id"])
         if it.get("width"):
             body.setdefault("src_w", it["width"]); body.setdefault("src_h", it["height"])
+    # 18+ с загруженной картинкой: оценка возраста описателем (один раз на файл, самая осторожная из двух моделей)
+    p18 = presets.get(body.get("preset")) or {}
+    if p18.get("nsfw"):
+        from ..assistant import provenance
+        for n in body.get("images") or []:
+            if str(n).startswith("up_") and "age" not in provenance.info(n):
+                age = provenance.youngest_age(INPUT / n)
+                if age is not None:
+                    provenance.remember(n, {**provenance.info(n), "age": age})
+                else:
+                    err("Не удалось проверить возраст на картинке (описатель не отвечает). Проверьте «Помощник» в разделе «Система».")
     # промпт по-русски без помощника — переводим (модели лучше понимают английский)
     import re as _re
     if _re.search("[а-яё]", body.get("prompt") or "", _re.I):
@@ -224,7 +235,10 @@ async def upload(file: UploadFile = File(...)):
         w, h = Image.open(INPUT / name).size
     except Exception:
         w = h = None
-    return {"name": name, "url": f"/files/input/{name}", "width": w, "height": h}
+    from ..assistant import provenance
+    ai = provenance.detect(INPUT / name)
+    provenance.remember(name, {"ai": ai})
+    return {"name": name, "url": f"/files/input/{name}", "width": w, "height": h, "ai": ai}
 
 
 # ---------------------------------------------------------------- помощник и описатель

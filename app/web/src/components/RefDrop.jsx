@@ -54,6 +54,7 @@ export default function RefDrop({ refs, setRefs, max = 1, accept = "image", labe
         {refs.map((r, i) => (
           <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden animate-pop" style={{ border: "1px solid var(--line)" }}>
             {accept === "video" ? <video src={r.url} className="w-full h-full object-cover" muted /> : <img src={r.url} className="w-full h-full object-cover" alt="" />}
+            {r.ai && <span title={`Найдена метка: ${r.ai}`} className="absolute bottom-1 left-1 text-[10px] px-1.5 rounded bg-black/70 text-white">ИИ ✓</span>}
             <button onClick={() => setRefs(refs.filter((_, j) => j !== i))} className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80" aria-label="Убрать"><X size={13} /></button>
           </div>
         ))}

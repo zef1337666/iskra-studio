@@ -120,9 +120,18 @@ class JobManager:
                 prompt = f"A new image {focus} <ref_image_0>: {prompt}"
             if p.get("nsfw") and (req.get("character") or images and p.get("ref_workflow")):
                 raise ValueError("В 18+ пресетах нельзя использовать персонажей и фото-референсы людей — только вымышленные персонажи из текста.")
-            if p.get("nsfw") and any(str(n).startswith("up_") for n in images):
-                # 18+ видео — только из картинок, созданных в студии (вымышленные персонажи), не из загруженных фото
-                raise ValueError("Для 18+ можно оживлять только картинки, созданные в студии. Загруженные фото здесь не принимаются.")
+            if p.get("nsfw"):
+                from ..assistant import provenance
+                for n in images:
+                    if not str(n).startswith("up_"):
+                        continue
+                    inf = provenance.info(n)
+                    # загруженная картинка в 18+: нужна метка «создано ИИ» или явное подтверждение пользователя
+                    if not inf.get("ai") and not req.get("attest_fictional"):
+                        raise ValueError("Для 18+ подтвердите, что на загруженной картинке вымышленный взрослый персонаж, созданный ИИ, "
+                                         "а не фото реального человека (галочка под картинкой).")
+                    if inf.get("age") is None or inf["age"] < 20:
+                        raise ValueError("Возраст на картинке не прошёл проверку — такую картинку нельзя использовать в 18+.")
             if p.get("prompt_template"):
                 prompt = p["prompt_template"].replace("{prompt}", prompt)
             if p.get("prompt_prefix"):
