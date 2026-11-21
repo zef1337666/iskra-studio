@@ -18,7 +18,7 @@ export function PresetCover({ p, className = "", blur }) {
   );
 }
 
-export default function PresetPicker({ value, onChange }) {
+export default function PresetPicker({ value, onChange, compact }) {
   const { presets, safeMode } = useStore();
   const [open, setOpen] = useState(false);
   const visible = presets.filter((p) => !p.hidden && !(safeMode && p.nsfw));
@@ -28,6 +28,7 @@ export default function PresetPicker({ value, onChange }) {
   const g = tab && groups.includes(tab) ? tab : cur?.group && groups.includes(cur.group) ? cur.group : groups[0];
   return (
     <>
+      {compact ? <button onClick={() => setOpen(true)} className="chip !h-8 shrink-0"><ChevronDown size={14} />Все пресеты</button> :
       <button onClick={() => setOpen(true)} className="w-full flex items-center gap-3 p-2 rounded-2xl transition hover:bg-[var(--panel-2)]" style={{ border: "1px solid var(--line)" }}>
         {cur ? <PresetCover p={cur} className="w-12 h-12 rounded-xl shrink-0" blur={cur.nsfw && safeMode} /> : <div className="w-12 h-12 rounded-xl skeleton" />}
         <div className="text-left min-w-0 flex-1">
@@ -36,7 +37,7 @@ export default function PresetPicker({ value, onChange }) {
           <div className="text-xs muted truncate">{cur?.base_model}</div>
         </div>
         <ChevronDown size={18} className="dim" />
-      </button>
+      </button>}
       <Modal open={open} onClose={() => setOpen(false)} wide title="Выберите пресет">
         <div className="px-6 flex gap-2 flex-wrap pb-4">
           {groups.map((x) => { const I = GROUP_ICON[x] || Star; return (

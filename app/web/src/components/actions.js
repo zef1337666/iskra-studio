@@ -4,8 +4,9 @@ import { useStore } from "../store";
 
 const S = () => useStore.getState();
 
-async function gen(body, okText) {
-  try { await api.post("/api/generate", body); S().toast(okText || "Задача добавлена в очередь", "info"); }
+async function gen(body) {
+  // без всплывающих «добавлено в очередь»: карточка задачи сама появляется в ленте
+  try { await api.post("/api/generate", body); if (S().page !== "create") S().toast("Задача в очереди — прогресс на экране «Создать»", "info"); }
   catch (e) { S().toast(e.message, "error"); }
 }
 

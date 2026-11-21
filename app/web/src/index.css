@@ -36,7 +36,6 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
   .glass { background: var(--panel); backdrop-filter: blur(18px) saturate(1.2); border: 1px solid var(--line); }
   .panel { background: var(--panel-solid); border: 1px solid var(--line); }
   .chip:hover { color: var(--text); border-color: color-mix(in srgb, var(--color-accent) 50%, var(--line)); }
-  .chip.on { color: #fff; background: var(--color-accent); border-color: var(--color-accent); }
   .field { width: 100%; border-radius: .75rem; padding: .5rem .75rem; font-size: .875rem; outline: none; transition: all .15s; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); }
   .field:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(139,124,255,.18); }
   .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--dim); }
@@ -47,3 +46,6 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
   .nsfw-blur { filter: blur(26px) saturate(.6); transform: scale(1.08); }
 }
 input[type=range] { accent-color: var(--color-accent); }
+
+/* вне слоёв: перекрывает @utility chip */
+.chip.on { color: #fff; background: var(--color-accent); border-color: var(--color-accent); }

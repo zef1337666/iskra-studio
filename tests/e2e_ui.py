@@ -34,13 +34,13 @@ with sync_playwright() as pw:
     # 1. создать картинку
     box = page.get_by_placeholder("Опишите, что хотите", exact=False)
     box.fill("маленький зелёный кактус в глиняном горшке на белом фоне")
-    page.get_by_role("button", name="Черновик").click()
+    page.locator("button", has_text="Черновик").first.click()
     page.keyboard.press("Control+Enter")
-    expect(page.get_by_text("В работе", exact=False)).to_be_visible(timeout=60000)
-    ok(True, "задача появилась в «В работе» с прогрессом")
+    expect(page.get_by_role("button", name="Отменить").first).to_be_visible(timeout=60000)
+    ok(True, "карточка задачи с прогрессом появилась в ленте")
     page.screenshot(path=str(SHOTS / "create_progress_1920.png"))
     ok(wait_idle(), "генерация завершилась")
-    expect(page.get_by_text("Последние результаты")).to_be_visible(timeout=20000)
+    time.sleep(2)
     new = api("/api/items?limit=1")[0]
     ok(new["id"] > before and new["preset"] == "photo-real", f"результат #{new['id']} сохранён ({new['job_sec']} с)")
     page.screenshot(path=str(SHOTS / "create_result_1920.png"))
