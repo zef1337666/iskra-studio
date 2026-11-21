@@ -1,0 +1,15 @@
+id: pose
+name: Поза и композиция
+group: Редактирование
+order: 3
+media: image
+workflow: zimage_control
+requires: image
+assistant: photo
+base_model: Z-Image Turbo
+eta:
+  draft: 25
+  quality: 28
+params:
+  control: pose
+description: Повторить позу или композицию с картинки-образца.

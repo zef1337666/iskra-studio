@@ -1,0 +1,13 @@
+id: transition
+name: Первый и последний кадр
+group: Видео
+order: 3
+media: video
+workflow: h3_video
+requires: images2
+assistant: video
+base_model: MiniMax-H3
+eta:
+  draft: 70
+  quality: 230
+description: Плавный переход между двумя картинками.

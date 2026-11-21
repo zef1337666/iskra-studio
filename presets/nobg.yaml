@@ -1,0 +1,11 @@
+id: nobg
+name: Удалить фон
+group: Редактирование
+hidden: true
+media: image
+workflow: remove_bg
+requires: image
+base_model: BiRefNet
+eta:
+  draft: 2
+  quality: 2

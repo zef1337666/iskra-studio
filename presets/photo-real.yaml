@@ -1,0 +1,29 @@
+id: photo-real
+name: Реализм
+group: Фото
+order: 1
+media: image
+workflow: klein_t2i
+ref_workflow: klein_edit
+assistant: photo
+base_model: FLUX.3 Klein
+megapixels:
+  draft: 1.0
+  quality: 1.5
+eta:
+  draft: 6
+  quality: 11
+description: 'Фотореалистичные снимки: люди, животные, предметы, интерьеры.'
+chips:
+- label: Студийный свет
+  hint: professional studio lighting, softbox key light, clean backdrop
+- label: Дневной свет
+  hint: natural daylight, soft window light
+- label: Вечер, тёплый свет
+  hint: warm golden evening light, cozy ambience
+- label: Снято на телефон
+  hint: amateur smartphone photo, candid, slight noise, on-camera flash look
+- label: Плёнка
+  hint: 35mm film photo, Kodak Portra colors, film grain
+- label: Глянец
+  hint: glossy magazine photoshoot, editorial fashion lighting, high-end retouch

@@ -1,0 +1,11 @@
+id: detail
+name: Улучшить лицо и руки
+group: Редактирование
+hidden: true
+media: image
+workflow: detailer
+requires: image
+base_model: FLUX.3 Klein
+eta:
+  draft: 8
+  quality: 23

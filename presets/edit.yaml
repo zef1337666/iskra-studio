@@ -1,0 +1,14 @@
+id: edit
+name: Редактировать командой
+group: Редактирование
+order: 1
+media: image
+workflow: klein_edit
+requires: image
+assistant: edit
+base_model: FLUX.3 Klein
+eta:
+  draft: 10
+  quality: 14
+description: «Смени фон», «сделай ночь», «добавь очки» — загрузите картинку и напишите,
+  что изменить.

@@ -1,0 +1,12 @@
+id: inpaint
+name: Перерисовать область
+group: Редактирование
+hidden: true
+media: image
+workflow: klein_edit
+requires: image
+assistant: edit
+base_model: FLUX.3 Klein
+eta:
+  draft: 10
+  quality: 14

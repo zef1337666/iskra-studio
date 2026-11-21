@@ -1,0 +1,19 @@
+id: retro-anime
+name: Ретро-аниме
+group: Арт
+order: 5
+media: image
+workflow: krea2_t2i
+assistant: art
+base_model: Krea 2
+params:
+  loras:
+  - - krea2_retroanime.safetensors
+    - 1.0
+megapixels:
+  draft: 1.0
+  quality: 1.0
+eta:
+  draft: 8
+  quality: 9
+description: Аниме 80–90-х, как кадр из старого фильма.

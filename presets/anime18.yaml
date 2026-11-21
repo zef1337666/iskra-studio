@@ -1,0 +1,21 @@
+id: anime18
+name: Аниме 18+
+group: 18+
+order: 3
+nsfw: true
+media: image
+workflow: sdxl_t2i
+assistant: anime18
+base_model: Illustrious
+params:
+  model: OneObsession 24.safetensors
+  cfg: 5.0
+megapixels:
+  draft: 1.0
+  quality: 1.0
+eta:
+  draft: 10
+  quality: 30
+prompt_prefix: 'masterpiece, best quality, amazing quality, very aesthetic, absurdres,
+  newest, '
+description: Аниме для взрослых (One Obsession v24). Только взрослые персонажи.

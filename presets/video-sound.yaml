@@ -1,0 +1,11 @@
+id: video-sound
+name: Добавить звук
+group: Видео
+hidden: true
+media: video
+workflow: video_audio
+requires: video
+base_model: MMAudio
+eta:
+  draft: 50
+  quality: 100

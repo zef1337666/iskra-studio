@@ -1,0 +1,11 @@
+id: video-enhance
+name: Сделать плавнее
+group: Видео
+hidden: true
+media: video
+workflow: video_enhance
+requires: video
+base_model: RIFE + SeedVR2
+eta:
+  draft: 3
+  quality: 220

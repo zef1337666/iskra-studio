@@ -1,0 +1,12 @@
+id: outpaint
+name: Расширить кадр
+group: Редактирование
+hidden: true
+media: image
+workflow: klein_outpaint
+requires: image
+assistant: edit
+base_model: FLUX.3 Klein
+eta:
+  draft: 9
+  quality: 16

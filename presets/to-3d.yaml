@@ -1,0 +1,12 @@
+id: to-3d
+name: Картинка → 3D
+group: 3D
+order: 1
+media: 3d
+workflow: image_to_3d
+requires: image
+base_model: Pixal3D
+eta:
+  draft: 95
+  quality: 115
+description: 3D-модель с текстурой из картинки предмета. Фон удаляется сам.

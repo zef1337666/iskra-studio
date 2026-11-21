@@ -1,0 +1,12 @@
+id: video
+name: Видео со звуком
+group: Видео
+order: 1
+media: video
+workflow: h3_video
+assistant: video
+base_model: MiniMax-H3
+eta:
+  draft: 70
+  quality: 230
+description: Из текста или картинки — видео 4–8 секунд со звуком.

@@ -1,0 +1,15 @@
+id: illustration
+name: Иллюстрация
+group: Арт
+order: 2
+media: image
+workflow: krea2_t2i
+assistant: art
+base_model: Krea 2
+megapixels:
+  draft: 1.0
+  quality: 1.0
+eta:
+  draft: 8
+  quality: 9
+description: Цифровая иллюстрация, концепт-арт, постеры.

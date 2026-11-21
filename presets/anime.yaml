@@ -1,0 +1,15 @@
+id: anime
+name: Аниме
+group: Арт
+order: 1
+media: image
+workflow: anima_t2i
+assistant: anime
+base_model: Anima
+megapixels:
+  draft: 1.0
+  quality: 1.0
+eta:
+  draft: 7
+  quality: 15
+description: Аниме и манга в современном стиле.

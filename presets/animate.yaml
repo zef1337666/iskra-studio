@@ -1,0 +1,13 @@
+id: animate
+name: Оживить картинку
+group: Видео
+order: 2
+media: video
+workflow: wan22_video
+requires: image
+assistant: video
+base_model: Wan 2.2
+eta:
+  draft: 100
+  quality: 285
+description: Оживление картинки моделью Wan 2.2 (без звука).

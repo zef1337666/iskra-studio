@@ -1,0 +1,11 @@
+id: upscale
+name: Апскейл
+group: Редактирование
+hidden: true
+media: image
+workflow: upscale
+requires: image
+base_model: SeedVR2
+eta:
+  draft: 10
+  quality: 33

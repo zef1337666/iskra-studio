@@ -1,0 +1,36 @@
+id: real18-candid
+name: Реализм 18+ (любительское)
+group: 18+
+order: 2
+nsfw: true
+media: image
+workflow: krea2_t2i
+assistant: photo18
+base_model: Krea 2
+params:
+  loras:
+  - - Famegrid-Spice-Preview-V2.safetensors
+    - 0.75
+megapixels:
+  draft: 1.0
+  quality: 1.3
+eta:
+  draft: 9
+  quality: 14
+negative: cartoon, anime, 3d render, plastic skin, waxy skin, airbrushed, extra fingers,
+  deformed hands, bad anatomy, distorted body
+chips:
+- label: Студийный свет
+  hint: professional studio lighting, softbox key light, clean backdrop
+- label: Дневной свет
+  hint: natural daylight, soft window light
+- label: Вечер, тёплый свет
+  hint: warm golden evening light, cozy ambience
+- label: Снято на телефон
+  hint: amateur smartphone photo, candid, slight noise, on-camera flash look
+- label: Плёнка
+  hint: 35mm film photo, Kodak Portra colors, film grain
+- label: Глянец
+  hint: glossy magazine photoshoot, editorial fashion lighting, high-end retouch
+prompt_prefix: 'famegrid, natural face, candid photo, '
+description: Естественные «любительские» снимки взрослых персонажей.

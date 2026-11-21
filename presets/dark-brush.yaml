@@ -1,0 +1,19 @@
+id: dark-brush
+name: Тёмная кисть
+group: Арт
+order: 4
+media: image
+workflow: krea2_t2i
+assistant: art
+base_model: Krea 2
+params:
+  loras:
+  - - krea2_darkbrush.safetensors
+    - 1.0
+megapixels:
+  draft: 1.0
+  quality: 1.0
+eta:
+  draft: 8
+  quality: 9
+description: Драматичная живопись тёмной кистью.

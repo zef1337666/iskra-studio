@@ -1,0 +1,16 @@
+id: video18
+name: Видео 18+ реализм
+group: 18+
+order: 4
+nsfw: true
+media: video
+workflow: wan22_video
+requires: image
+assistant: video18
+base_model: Wan 2.2
+params:
+  set: nsfw_real
+eta:
+  draft: 110
+  quality: 290
+description: Оживление картинки с вымышленными взрослыми персонажами.

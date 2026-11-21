@@ -1,0 +1,17 @@
+id: character
+name: Персонаж
+group: Редактирование
+order: 2
+media: image
+workflow: klein_edit
+requires: image
+assistant: edit
+base_model: FLUX.3 Klein
+megapixels:
+  draft: 1.0
+  quality: 1.3
+eta:
+  draft: 11
+  quality: 14
+prompt_prefix: 'Photo of the same person from <ref_image_0>: '
+description: Тот же персонаж в новой сцене (1–3 референса).
