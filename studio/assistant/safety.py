@@ -9,7 +9,9 @@ import re
 MINOR_PATTERNS = [
     r"\bloli\w*", r"\bshota\w*", r"\bchild\w*", r"\bkids?\b", r"\bteen\w*", r"\bunderage\b", r"\bminor\b", r"\bpreteen\b",
     r"\bschool ?girl\w*", r"\bschool ?boy\w*", r"\byoung girl\b", r"\blittle girl\b", r"\blittle boy\b", r"\bbaby\b", r"\btoddler\b",
-    r"\b(1[0-7]|[1-9])[ -]?(years?[ -]old|yo|y/o)\b",
+    r"\b(1[0-7]|[1-9])[ -]?(years?[ -]old|yo|y/o)\b", r"\byoung[- ]looking\b", r"\bchildlike\b", r"\bjailbait\b", r"\bbarely legal\b",
+    r"\bjunior high\b", r"\bmiddle school\b", r"\belementary\b", r"\bpetite child\b",
+    r"\bмолоденьк\w*", r"\bюнн?ая на вид\b", r"\bвыглядит как реб\w*",
     r"ребён\w*", r"ребен\w*", r"\bдет(и|ей|ск\w*)", r"девочк\w*", r"мальчик\w*", r"школьни\w*", r"подрост\w*", r"несовершеннолет\w*",
     r"малолет\w*", r"\b(1[0-7]|[1-9])\s*(лет|года|год)\b", r"лоли\w*", r"тинейдж\w*", r"\bюн(ая|ый|ую|ой)\b",
 ]
