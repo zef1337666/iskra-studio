@@ -1,6 +1,42 @@
-[
- {"folder": "diffusion_models", "filename": "minimax_h3_fl2va_pruned_w6a8.safetensors", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_w6a8.safetensors", "size_gb": 15.98, "sha256": null, "for": "video_main (ComfyUI-native H3)"},
- {"folder": "diffusion_models", "filename": "z_image_turbo_int8_convrot.safetensors", "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors", "size_gb": 6.2, "sha256": null, "for": "controlnet base"},
- {"folder": "text_encoders", "filename": "qwen_3_4b_fp8_mixed.safetensors", "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors", "size_gb": 5.63, "sha256": null, "for": "controlnet base"},
- {"folder": "vae", "filename": "ae.safetensors", "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors", "size_gb": 0.34, "sha256": null, "for": "controlnet base"}
+﻿[
+    {
+        "folder":  "diffusion_models",
+        "filename":  "minimax_h3_fl2va_pruned_w6a8.safetensors",
+        "url":  "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_w6a8.safetensors",
+        "size_gb":  15.98,
+        "sha256":  null,
+        "for":  "video_main (ComfyUI-native H3)"
+    },
+    {
+        "folder":  "diffusion_models",
+        "filename":  "z_image_turbo_int8_convrot.safetensors",
+        "url":  "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors",
+        "size_gb":  6.2,
+        "sha256":  null,
+        "for":  "controlnet base"
+    },
+    {
+        "folder":  "text_encoders",
+        "filename":  "qwen_3_4b_fp8_mixed.safetensors",
+        "url":  "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+        "size_gb":  5.63,
+        "sha256":  null,
+        "for":  "controlnet base"
+    },
+    {
+        "folder":  "vae",
+        "filename":  "ae.safetensors",
+        "url":  "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+        "size_gb":  0.34,
+        "sha256":  null,
+        "for":  "controlnet base"
+    },
+    {
+        "folder":  "checkpoints",
+        "filename":  "OneObsession 24.safetensors",
+        "url":  "https://civitai.com/api/download/models/3218603?fileId=3100615",
+        "size_gb":  6.94,
+        "sha256":  "2fae33d7f0d23920d145897827e6015ac098a2b90cb682d07846ae762213100b",
+        "for":  "nsfw_anime (One Obsession v24 вместо закрытой v25)"
+    }
 ]

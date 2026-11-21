@@ -17,6 +17,5 @@ video_audio/mmaudio-large-44k
 3d/pixal3d-int8
 nsfw_real_boost/realistic-snapshot-krea2
 nsfw_real_boost/famegrid-krea2
-nsfw_anime/oneobsession-illustrious-v25
 nsfw_video_real/wan22-enhanced-nsfw-q6
 nsfw_video_anime/smoothmix-wan22-anime

@@ -45,7 +45,7 @@ def load_plan():
             files.setdefault(key, {**f, "url": url, "for": []})["for"].append(s)
     extra = ROOT / "config" / "extra_files.json"
     if extra.exists():
-        for f in json.loads(extra.read_text(encoding="utf-8")):
+        for f in json.loads(extra.read_text(encoding="utf-8-sig")):
             files.setdefault(f["folder"] + "/" + f["filename"], {**f, "for": [f.get("for", "extra")]})
     return files, missing
 

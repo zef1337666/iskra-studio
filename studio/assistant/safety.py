@@ -1,0 +1,43 @@
+"""Жёсткие ограничения 18+ (встроены в код, не зависят от модели-помощника).
+
+- Ничего, связанного с несовершеннолетними: запрос блокируется до генерации.
+- В 18+ промптах всегда явно указан взрослый возраст.
+- Негатив 18+ всегда содержит теги против детского облика.
+"""
+import re
+
+MINOR_PATTERNS = [
+    r"\bloli\w*", r"\bshota\w*", r"\bchild\w*", r"\bkids?\b", r"\bteen\w*", r"\bunderage\b", r"\bminor\b", r"\bpreteen\b",
+    r"\bschool ?girl\w*", r"\bschool ?boy\w*", r"\byoung girl\b", r"\blittle girl\b", r"\blittle boy\b", r"\bbaby\b", r"\btoddler\b",
+    r"\b(1[0-7]|[1-9])[ -]?(years?[ -]old|yo|y/o)\b",
+    r"ребён\w*", r"ребен\w*", r"\bдет(и|ей|ск\w*)", r"девочк\w*", r"мальчик\w*", r"школьни\w*", r"подрост\w*", r"несовершеннолет\w*",
+    r"малолет\w*", r"\b(1[0-7]|[1-9])\s*(лет|года|год)\b", r"лоли\w*", r"тинейдж\w*", r"\bюн(ая|ый|ую|ой)\b",
+]
+_minor_re = re.compile("|".join(MINOR_PATTERNS), re.IGNORECASE)
+
+# Явный возраст: число 21+ лет или «adult/mature». Слова woman/man сами по себе возрастом не считаются.
+ADULT_RE = re.compile(r"\b(adult|mature)\b|\b(2[1-9]|[3-9]\d)[ -]?(years?[ -]old|yo)\b|\bin (her|his|their) (20|30|40|50|60)s\b", re.I)
+
+NSFW_NEGATIVE = "child, minor, teen, underage, young-looking, childlike body, loli, shota, school uniform, flat chest child, baby face"
+
+REFUSAL_RU = ("Этот запрос нельзя выполнить: в разделе 18+ разрешены только вымышленные взрослые персонажи. "
+              "Ничего, что связано с несовершеннолетними, студия не генерирует.")
+
+
+def check_request(text: str, nsfw: bool):
+    """Возвращает текст отказа или None. Для 18+ — строгая проверка, для обычных пресетов проверку делает модель."""
+    if nsfw and text and _minor_re.search(text):
+        return REFUSAL_RU
+    return None
+
+
+def enforce_adult(prompt: str, negative: str, anime: bool = False):
+    """Гарантирует явный взрослый возраст и защитный негатив в 18+ пресетах."""
+    if _minor_re.search(prompt or ""):
+        return None, None  # модель-помощник выдала недопустимое — не используем
+    if not ADULT_RE.search(prompt or ""):
+        prompt = ("adult, mature, " if anime else "adult (25+ years old), ") + (prompt or "")
+    if anime and "adult" not in prompt.lower():
+        prompt = "adult, mature, " + prompt
+    neg = (negative + ", " if negative else "") + NSFW_NEGATIVE
+    return prompt, neg

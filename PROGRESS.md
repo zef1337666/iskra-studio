@@ -26,7 +26,7 @@
 - [x] Веха 1: ComfyUI + PyTorch + SageAttention + тест
 - [x] Веха 2: выбор моделей (23 шт.; Big Love и One Obsession — 403 на Civitai)
 - [x] Веха 3: workflow
-- [ ] Веха 4: менеджер моделей, помощник
+- [x] Веха 4: менеджер моделей, помощник
 - [ ] Веха 5: MVP приложения
 - [ ] Веха 6: остальные разделы
 - [ ] Веха 7: оптимизация и тесты
@@ -107,3 +107,16 @@
 - Звук к готовому видео: MMAudio. Плавность: RIFE. Апскейл: SeedVR2. Фон: BiRefNet. 3D: Pixal3D.
 
 - 2026-11-20: Big Love исключён по решению пользователя (Civitai не отдаёт ни одну версию). 18+ реализм = Krea 2 Turbo + Realistic Snapshot / FameGrid. One Obsession: v25 закрыта, v24 скачивается — ждёт решения.
+
+## Этапы 4–5 — менеджер моделей и помощник ✅ (2026-11-20)
+- One Obsession v24 скачан (v25 закрыта Civitai) — `checkpoints/OneObsession 24.safetensors`.
+- `studio/config.py` — пути, .env (save_env_key), семейства базовых моделей.
+- `studio/models/downloader.py` — очередь, прогресс/скорость, пауза/продолжение (.part), отмена, 7 повторов, SHA256, ошибки по-русски.
+- `studio/models/catalog.py` — поиск Civitai (с query нельзя period!) и HF, разбор ссылок Civitai/HF/ID версии, автоопределение папки (Checkpoint Flux/Krea/Qwen/Wan… → diffusion_models), оценка совместимости с 16 ГБ.
+- `studio/models/registry.py` — установленные (+метаданные *.meta.json и из страницы выбора), место по категориям, последнее использование, совместимость LoRA, проверка обновлений Civitai, удаление в корзину `data/trash/models`.
+- Тест: `tests/test_models_manager.py` — 8/8. Попутно установлен 4x-UltraSharp (быстрый апскейл, 67 МБ).
+- `studio/assistant/prompter.py` + `prompt-templates/*.md` (общие правила, фото, 18+ фото, аниме-теги, правка, видео). Режимы improve/exact/surprise/variants. keep_alive=0 — VRAM освобождается (проверено). Повтор, если промпт не на английском.
+- `studio/assistant/safety.py` — блок запросов про несовершеннолетних в 18+ (RU/EN), явный возраст 21+ или adult, защитный негатив 18+.
+- `studio/assistant/vision.py` — описатель: Qwen3.5 (vision) / JoyCaption для 18+, фокусы all/style/composition/character/colors.
+- Скорость помощника: холодный старт ~60 с (первая загрузка с диска), далее 4–12 с; описатель ~14 с.
+- Модель без цензуры для 18+ не выбрана — сейчас 18+ использует qwen3.5:9b (может отказывать). Кандидат: huihui_ai/qwen3.5-abliterated:9b (6.6 ГБ).
