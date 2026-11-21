@@ -20,6 +20,7 @@ SAMPLES = {
     "video_enhance": {"videos": ["input.mp4"], "fps": 16, "seed": 1},
     "video_audio": {"videos": ["input.mp4"], "prompt": "cat purring", "duration": 5, "fps": 16, "seed": 1},
     "image_to_3d": {"images": ["input.png"], "seed": 1},
+    "zimage_control": {"images": ["pose.png"], "control": "pose", "prompt": "A man in a denim jacket", "seed": 1},
 }
 api_dir = ROOT / "workflows" / "api"
 api_dir.mkdir(parents=True, exist_ok=True)

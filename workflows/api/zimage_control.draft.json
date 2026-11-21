@@ -1,0 +1,236 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "z_image_turbo_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Z-Image Turbo"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen_3_4b_fp8_mixed.safetensors",
+   "type": "lumina2",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "Qwen3 4B"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "ae.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "4": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "pose.png"
+  },
+  "_meta": {
+   "title": "Референс позы/композиции"
+  }
+ },
+ "5": {
+  "class_type": "ImageScaleToMaxDimension",
+  "inputs": {
+   "image": [
+    "4",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "largest_size": 1024
+  },
+  "_meta": {
+   "title": "Размер"
+  }
+ },
+ "6": {
+  "class_type": "DWPreprocessor",
+  "inputs": {
+   "image": [
+    "5",
+    0
+   ],
+   "detect_hand": "enable",
+   "detect_body": "enable",
+   "detect_face": "enable",
+   "resolution": 1024,
+   "bbox_detector": "yolox_l.onnx",
+   "pose_estimator": "dw-ll_ucoco_384_bs5.torchscript.pt",
+   "scale_stick_for_xinsr_cn": "disable"
+  },
+  "_meta": {
+   "title": "Скелет позы"
+  }
+ },
+ "7": {
+  "class_type": "ModelPatchLoader",
+  "inputs": {
+   "name": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-2602-8steps.safetensors"
+  },
+  "_meta": {
+   "title": "ControlNet Union"
+  }
+ },
+ "8": {
+  "class_type": "QwenImageDiffsynthControlnet",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "model_patch": [
+    "7",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ],
+   "image": [
+    "6",
+    0
+   ],
+   "strength": 0.8,
+   "start_percent": 0.0,
+   "end_percent": 1.0
+  },
+  "_meta": {
+   "title": "Применить ControlNet"
+  }
+ },
+ "9": {
+  "class_type": "ModelSamplingAuraFlow",
+  "inputs": {
+   "model": [
+    "8",
+    0
+   ],
+   "shift": 3.0
+  },
+  "_meta": {
+   "title": "Сдвиг"
+  }
+ },
+ "10": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": "A man in a denim jacket"
+  },
+  "_meta": {
+   "title": "Промпт"
+  }
+ },
+ "11": {
+  "class_type": "ConditioningZeroOut",
+  "inputs": {
+   "conditioning": [
+    "10",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Пустой негатив"
+  }
+ },
+ "12": {
+  "class_type": "GetImageSize",
+  "inputs": {
+   "image": [
+    "6",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Размер кадра"
+  }
+ },
+ "13": {
+  "class_type": "EmptySD3LatentImage",
+  "inputs": {
+   "width": [
+    "12",
+    0
+   ],
+   "height": [
+    "12",
+    1
+   ],
+   "batch_size": 1
+  },
+  "_meta": {
+   "title": "Латент"
+  }
+ },
+ "14": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "9",
+    0
+   ],
+   "positive": [
+    "10",
+    0
+   ],
+   "negative": [
+    "11",
+    0
+   ],
+   "latent_image": [
+    "13",
+    0
+   ],
+   "seed": 1,
+   "steps": 8,
+   "cfg": 1.0,
+   "sampler_name": "res_multistep",
+   "scheduler": "simple",
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Генерация"
+  }
+ },
+ "15": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "14",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Декодирование"
+  }
+ },
+ "16": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "15",
+    0
+   ],
+   "filename_prefix": "studio/pose"
+  },
+  "_meta": {
+   "title": "Сохранить"
+  }
+ }
+}
