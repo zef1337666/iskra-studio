@@ -1,7 +1,7 @@
 id: real18-rd
 name: Реализм 18+ (Real Dream)
 group: 18+
-order: 3
+order: 4
 nsfw: true
 media: image
 workflow: krea2_t2i

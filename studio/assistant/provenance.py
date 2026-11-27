@@ -6,9 +6,9 @@
 import json, re, pathlib
 from ..config import DATA
 
+# Только «сильные» признаки ИИ: голый C2PA есть и у снимков с камеры (Pixel и др.), поэтому сам по себе не считается.
 MARKERS = [
     (rb"trainedAlgorithmicMedia|compositeSynthetic|algorithmicMedia", "метка IPTC «создано ИИ»"),
-    (rb"c2pa|jumb|contentauth", "Content Credentials (C2PA)"),
     (rb"Made with Google AI|Google AI|SynthID|Imagen|Gemini", "Google AI"),
     (rb"OpenAI|DALL[-\xb7 ]?E|ChatGPT|gpt-image", "OpenAI"),
     (rb"Midjourney", "Midjourney"),

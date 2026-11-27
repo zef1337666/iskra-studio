@@ -118,12 +118,16 @@ class JobManager:
                 focus = {"style": "in the visual style of", "composition": "with the same composition and pose as",
                          "character": "featuring the same character as", "colors": "with the same colors and lighting as"}.get(req.get("focus"), "based on")
                 prompt = f"A new image {focus} <ref_image_0>: {prompt}"
-            if p.get("nsfw") and (req.get("character") or images and p.get("ref_workflow")):
+            if p.get("nsfw") and p.get("workflow") != "krea2_identity" and (req.get("character") or images and p.get("ref_workflow")):
                 raise ValueError("В 18+ пресетах нельзя использовать персонажей и фото-референсы людей — только вымышленные персонажи из текста.")
-            if p.get("nsfw") and (p.get("params") or {}).get("img2img") and any(str(n).startswith("up_") for n in images):
-                # 18+ «по картинке» (переделка изображения) — только для картинок, созданных в студии: защита от дипфейков из чужих фото
-                raise ValueError("В 18+ фото-пресетах «по картинке» работает только с картинками из вашей галереи (созданными в студии). "
-                                 "Загруженные файлы можно использовать в обычных пресетах и для 18+ видео.")
+            if p.get("nsfw") and ((p.get("params") or {}).get("img2img") or p.get("workflow") == "krea2_identity"):
+                # 18+ переделка/перенос персонажа: генерации студии и ИИ-картинки с меткой «создано ИИ» — свободно;
+                # обычные фото (без метки) и всё, что из них получено, — нет (защита от дипфейков)
+                bad = [n for n in images if not image_is_synthetic(n)]
+                if bad:
+                    raise ValueError("Эта картинка не распознана как ИИ-генерация (нет метки «создано ИИ» в файле), поэтому для 18+ переноса "
+                                     "и «по картинке» не подходит. Подходят генерации студии и файлы из ИИ-сервисов, которые ставят метку "
+                                     "(Google, OpenAI, Adobe, Midjourney и др.).")
             if p.get("nsfw"):
                 from ..assistant import provenance
                 for n in images:
@@ -315,10 +319,13 @@ class JobManager:
                     except Exception:
                         pass
                     p = job.params
+                    # помечаем результаты, полученные из обычных (не ИИ) фото — чтобы их нельзя было «отмыть» для 18+ переноса
+                    src_imgs = list(p.get("images") or []) + list(p.get("videos") or [])
+                    from_photo = any(not image_is_synthetic(n) for n in src_imgs)
                     item = db.add_item(path=rel, thumb=thumb, kind=kind, preset=job.preset["id"], preset_name=job.preset.get("name"),
                                        model=job.preset.get("base_model"), mode=job.mode, prompt=p.get("prompt"), negative=p.get("negative"),
                                        user_text=job.req.get("user_text"), seed=p.get("seed"), width=w, height=hgt,
-                                       params={k: v for k, v in p.items() if k not in ("prompt", "negative")} | {"workflow": job.workflow},
+                                       params={k: v for k, v in p.items() if k not in ("prompt", "negative")} | {"workflow": job.workflow, "from_photo": from_photo},
                                        nsfw=1 if job.preset.get("nsfw") else 0, parent_id=job.req.get("parent_id"),
                                        job_sec=round(time.time() - job.started, 1))
                     job.items.append(item)
@@ -393,6 +400,21 @@ def convert_image(src, rel):
     im.save(dst, quality=int(s.get("jpg_quality", 92)))
     src.unlink()
     return dst, rel.rsplit(".", 1)[0] + dst.suffix
+
+
+def image_is_synthetic(name):
+    """Картинка — ИИ-генерация: загрузка с меткой «создано ИИ» или результат студии, не полученный из обычного фото."""
+    from ..assistant import provenance
+    name = str(name)
+    if name.startswith("up_"):
+        return bool(provenance.info(name).get("ai"))
+    if name.startswith("it_"):
+        try:
+            it = db.get_item(int(name.split("_")[1]))
+        except Exception:
+            return False
+        return bool(it) and not (it.get("params") or {}).get("from_photo")
+    return True  # служебные файлы студии (test_*, uploads сохранённых персонажей из галереи)
 
 
 def make_thumb(src, kind):

@@ -1,7 +1,7 @@
 id: real18-candid
 name: Реализм 18+ (любительское)
 group: 18+
-order: 4
+order: 5
 nsfw: true
 media: image
 workflow: krea2_t2i

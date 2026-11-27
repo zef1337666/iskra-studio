@@ -236,8 +236,8 @@ export default function Create() {
               <div className="flex gap-1.5 flex-wrap"><span className="label self-center w-28">Камера</span>{CAMERA.map(([v, l]) => <button key={v} className={`chip !h-7 !text-xs ${camera === v ? "on" : ""}`} onClick={() => setCamera(camera === v ? null : v)}>{l}</button>)}</div>
               {p.workflow === "wan22_video" && <label className="flex items-center gap-2 muted cursor-pointer"><input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} />Сделать плавнее (удвоить кадры)</label>}
             </div>}
-            {!p.nsfw && media === "image" && chars.length > 0 && <div className="flex items-center gap-2"><span className="label w-28">Персонаж</span>
-              <select className="field !py-1.5" value={character?.id || ""} onChange={(e) => { const c = chars.find((x) => x.id === Number(e.target.value)) || null; setCharacter(c); if (c) { setRefs(c.refs); pick("character"); } else setRefs([]); }}>
+            {(!p.nsfw || p.workflow === "krea2_identity") && media === "image" && chars.length > 0 && <div className="flex items-center gap-2"><span className="label w-28">Персонаж</span>
+              <select className="field !py-1.5" value={character?.id || ""} onChange={(e) => { const c = chars.find((x) => x.id === Number(e.target.value)) || null; setCharacter(c); if (c) { setRefs(c.refs); if (!p.nsfw) pick("character"); } else setRefs([]); }}>
                 <option value="">— без персонажа —</option>{chars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
             <textarea className="field !text-xs" rows={2} value={negative} onChange={(e) => setNegative(e.target.value)} placeholder="Негатив: чего не должно быть (для моделей, которые его понимают)" />
             <div className="grid grid-cols-3 gap-2">

@@ -220,6 +220,35 @@ def krea2_t2i(p, mode="quality"):
     return g.to_api()
 
 
+# ---------------------------------------------------------------- Перенос персонажа на Krea 2 (Identity Edit V2, встроенные ноды)
+def krea2_identity(p, mode="quality"):
+    """Персонаж с референса (1 картинка) в новой сцене/позе/одежде. Механизм — как в официальном шаблоне Krea 2 Style Reference:
+    TextEncodeQwenImageEditPlus (референс через Qwen3-VL + латент) -> FluxKontextMultiReferenceLatentMethod, плюс LoRA Identity Edit V2."""
+    g = Graph()
+    seed, (w, h) = _seed(p), _size(p)
+    unet = g.add("UNETLoader", "Модель Krea 2", unet_name=p.get("model", "lustify-v10-krea-turbo-int8_convrot.safetensors"), weight_dtype="default")
+    clip = g.add("CLIPLoader", "Текстовый энкодер", clip_name=p.get("te", KLEIN_TE), type="krea2", device="default")
+    vae = g.add("VAELoader", "VAE", vae_name="qwen_image_vae.safetensors")
+    loras = [["krea2_identity_edit_v2.safetensors", float(p.get("identity_strength", 1.0))]] + list(p.get("loras") or [])
+    model, _ = _loras(g, unet.out, loras)
+    model = g.add("ModelSamplingFlux", "Сдвиг", model=model, max_shift=1.15, base_shift=0.5, width=w, height=h).out
+    refs = {f"image{i + 1}": g.add("LoadImage", f"Персонаж {i + 1}", image=n)[0] for i, n in enumerate(p["images"][:2])}
+    cond = g.add("TextEncodeQwenImageEditPlus", "Промпт + персонаж", clip=clip.out, prompt=p["prompt"], vae=vae.out, **refs)
+    pos = g.add("FluxKontextMultiReferenceLatentMethod", "Референс", conditioning=cond.out, reference_latents_method="index_timestep_zero")
+    neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
+    guider = g.add("CFGGuider", "Гайдер", model=model, positive=pos.out, negative=neg.out, cfg=1.0)
+    steps = int(p.get("steps") or (8 if mode == "draft" else 10))
+    sch = g.add("BasicScheduler", "Шаги", model=model, scheduler="simple", steps=steps, denoise=1.0)
+    smp = g.add("KSamplerSelect", "Сэмплер", sampler_name="euler")
+    noise = g.add("RandomNoise", "Шум", noise_seed=seed)
+    lat = g.add("EmptyLatentImage", "Размер", width=w, height=h, batch_size=1)
+    out = g.add("SamplerCustomAdvanced", "Генерация", noise=noise.out, guider=guider.out, sampler=smp.out, sigmas=sch.out, latent_image=lat.out)
+    img = g.add("VAEDecode", "Декодирование", samples=out[0], vae=vae.out).out
+    img = _finish(g, img, p, mode, seed)
+    _save(g, img, p, "studio/identity")
+    return g.to_api()
+
+
 # ---------------------------------------------------------------- SDXL / Illustrious чекпоинты
 def sdxl_t2i(p, mode="quality"):
     g = Graph()
@@ -564,6 +593,7 @@ def klein_upsample(p, mode="quality"):
 
 
 REGISTRY = {
+    "krea2_identity": krea2_identity,
     "klein_upsample": klein_upsample,
     "train_lora": train_lora,
     "zimage_control": zimage_control,
