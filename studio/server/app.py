@@ -164,6 +164,16 @@ def generate(body: dict):
     p18 = presets.get(body.get("preset")) or {}
     if p18.get("nsfw"):
         from ..assistant import provenance
+        if p18.get("media") == "video":
+            # 18+ оживление картинки — как перенос персонажа: только генерации студии и ИИ-картинки с меткой (защита от дипфейков)
+            from .jobs import image_is_synthetic
+            bad = [n for n in body.get("images") or [] if not image_is_synthetic(n)]
+            if bad:
+                if any(provenance.info(n).get("bare") for n in bad):
+                    err("В файле нет никаких метаданных — метку «создано ИИ» стёрли при пересылке (Telegram, WhatsApp), сохранении из превью "
+                        "или скриншоте. Скачайте оригинал прямо в сервисе кнопкой «Скачать» или возьмите генерацию из галереи студии.")
+                err("Для видео 18+ из картинки подходят генерации студии и ИИ-картинки с меткой «создано ИИ» (Google, OpenAI, Grok и др.) — "
+                    "как и для переноса персонажа.")
         for n in body.get("images") or []:
             if str(n).startswith("up_") and "age" not in provenance.info(n):
                 age = provenance.youngest_age(INPUT / n)

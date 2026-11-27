@@ -15,3 +15,4 @@ eta:
   quality: 120
 prompt_prefix: 'smoothmixanime, anime style. '
 description: Оживление аниме-картинки (SmoothMix).
+motions: nsfw

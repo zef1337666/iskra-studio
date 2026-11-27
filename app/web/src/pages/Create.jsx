@@ -343,12 +343,20 @@ export default function Create() {
                 <Tip text="Насколько результат держится за картинку: меньше — свободнее, больше — ближе к исходнику"><span>Похожесть</span></Tip>
                 <input type="range" min="0.1" max="0.95" step="0.05" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="flex-1" />
                 <span className="w-9 text-right">{Math.round(strength * 100)}%</span></div>}
-              {p.nsfw && (p.workflow === "krea2_identity" || p.params?.img2img) && refs.some((r) => r.name?.startsWith("up_") && !r.ai) &&
+              {p.nsfw && (p.workflow === "krea2_identity" || p.params?.img2img || p.media === "video") && refs.some((r) => r.name?.startsWith("up_") && !r.ai) &&
                 <span className="text-xs self-center max-w-md" style={{ color: "var(--color-pink)" }}>
                   {refs.some((r) => r.bare) ? "В файле нет метаданных (переслан через мессенджер или это скриншот) — метка ИИ стёрта. Скачайте оригинал кнопкой «Скачать» в сервисе." : "Нет метки «создано ИИ» — для переноса не подойдёт. Возьмите оригинал из сервиса или генерацию из галереи."}</span>}
-              {p.nsfw && !(p.workflow === "krea2_identity" || p.params?.img2img) && refs.some((r) => r.name?.startsWith("up_") && !r.ai) && !settings?.uploads_attested &&
+              {p.nsfw && !(p.workflow === "krea2_identity" || p.params?.img2img || p.media === "video") && refs.some((r) => r.name?.startsWith("up_") && !r.ai) && !settings?.uploads_attested &&
                 <label className="flex gap-2 items-start text-xs cursor-pointer max-w-md self-center"><input type="checkbox" checked={attest} onChange={async (e) => { setAttest(e.target.checked); if (e.target.checked) useStore.setState({ settings: await api.put("/api/settings", { uploads_attested: true }) }); }} className="mt-0.5" />
                   <span>Подтверждаю: на картинке вымышленный взрослый персонаж, созданный ИИ (спрошу один раз)</span></label>}
+            </div>}
+            {/* готовые движения для оживления картинки — в один клик; свой вариант можно написать в поле ниже */}
+            {p._motions?.length > 0 && <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
+              <span className="label shrink-0 mr-1">Движение</span>
+              {p._motions.map((m) => <Tip key={m.label} text={refs.length || !needsRef ? "Создать видео с этим движением" : "Сначала добавьте картинку (+ или перетащите)"}>
+                <button className="chip !h-7 !text-xs shrink-0 whitespace-nowrap" disabled={busy === "create"} style={p.nsfw ? { borderColor: "var(--color-pink)" } : {}}
+                  onClick={() => { if (needsRef && !refs.length) { toast("Сначала добавьте картинку, которую нужно оживить (+ или перетащите)", "info"); return; } setDraft({ text: m.prompt, auto: false }); setOriginal(null); setAiNote(null); create(m.prompt); }}>{m.label}</button></Tip>)}
+              <span className="dim text-xs shrink-0 ml-1">или опишите своё ниже</span>
             </div>}
             {/* ввод */}
             <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 px-1">

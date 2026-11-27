@@ -26,6 +26,13 @@ def size_for(aspect, megapixels, step=16):
     return int(round(w / step)) * step, int(round(h / step)) * step
 
 
+def _motions():
+    try:
+        return yaml.safe_load((ROOT / "config" / "motions.yaml").read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
 def load_all():
     out = []
     for f in sorted(PRESETS_DIR.glob("*.yaml")):
@@ -35,6 +42,8 @@ def load_all():
             p = {"id": f.stem, "name": f.stem, "error": f"Ошибка в файле: {e}"}
         p.setdefault("id", f.stem)
         p["_file"] = f.name
+        if p.get("motions"):  # готовые движения для оживления картинки (config/motions.yaml); «_» — не сохраняется обратно в пресет
+            p["_motions"] = _motions().get(p["motions"], []) if isinstance(p["motions"], str) else p["motions"]
         out.append(p)
     out.sort(key=lambda p: (GROUP_ORDER.index(p.get("group")) if p.get("group") in GROUP_ORDER else 99, p.get("order", 50), p.get("name", "")))
     return out
