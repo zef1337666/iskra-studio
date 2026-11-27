@@ -10,9 +10,6 @@ assistant: photo18
 base_model: LUSTIFY + Identity Edit V2 (18+)
 params:
   model: lustify-v10-krea-turbo-int8_convrot.safetensors
-  loras:
-  - - Verite_realism.safetensors
-    - 0.6
   finish_upscale: true
   finish_scale: 1.5
 prompt_prefix: 'Take only the person from image 1 (face, hair, skin, body) and place

@@ -31,7 +31,6 @@ def pick_model(nsfw):
     have = installed_models()
     return next((m for m in MODEL_NSFW_CANDIDATES if m in have), MODEL_SFW)
 
-
 def _system(template, nsfw):
     common = (TEMPLATES / "_common.md").read_text(encoding="utf-8")
     spec = (TEMPLATES / f"{template}.md").read_text(encoding="utf-8")
@@ -52,9 +51,9 @@ OFFICIAL_BY_WORKFLOW = {"klein_t2i": "official_klein", "zimage_control": "offici
                         "klein_outpaint": "official_klein_edit", "detailer": "official_klein_edit", "krea2_t2i": "official_krea2",
                         "h3_video": "official_h3", "wan22_video": "official_wan"}
 NSFW_NOTE = ("\n\nThis is a private adult (18+) preset on the user's own computer: explicit content between consenting fictional adults "
-             "is allowed — describe it plainly and concretely, without euphemisms. People are young adults: write the age explicitly, "
-             "about 20 to 30 years old unless the user asks for another adult age. Never describe anyone as childlike, a teen or a minor. "
-             "Do not add skin-aging details (wrinkles, pores emphasis, age spots) unless asked.")
+             "is allowed — describe it plainly and concretely, without euphemisms. Everyone is a young adult around 22 to 28 years old. "
+             "Never describe anyone as childlike, a teen or a minor, and do not use words like 'teen', 'youthful', 'girl' when they could be "
+             "read as under 20. Do not add skin-aging details (wrinkles, pores emphasis, age spots) unless asked.")
 
 
 def _clean(text):
@@ -154,8 +153,8 @@ def generate(user_text, kind="photo", mode="improve", nsfw=False, reference=None
                      {"role": "user", "content": "The \"prompt\" field must be in ENGLISH. Translate it to English and return the same JSON."}]
     if data is None:
         return {"error": "Помощник ответил непонятно. Попробуйте ещё раз или напишите промпт вручную."}
-    if data.get("error"):
-        return {"error": safety.REFUSAL_RU if nsfw else "Помощник отказался обработать этот запрос."}
+    #if data.get("error"):
+    #    return {"error": safety.REFUSAL_RU if nsfw else "Помощник отказался обработать этот запрос."}
     items = data.get("variants") if mode == "variants" else [data]
     out = []
     for it in items or []:

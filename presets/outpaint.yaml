@@ -10,3 +10,4 @@ base_model: FLUX.3 Klein
 eta:
   draft: 9
   quality: 16
+description: "Расширить кадр: дорисовать картинку за её краями."

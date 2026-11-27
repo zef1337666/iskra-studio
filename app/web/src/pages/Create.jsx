@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Wand2, Languages, Dices, Layers, Loader2, X, Zap, Gem, Plus, Trash2, Lock, Unlock, SlidersHorizontal, Undo2,
-  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown } from "lucide-react";
+  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown, LayoutGrid } from "lucide-react";
 import { useStore } from "../store";
 import { api, thumbUrl, fileUrl } from "../api";
 import PresetPicker from "../components/PresetPicker";
@@ -9,7 +9,7 @@ import Lightbox from "../components/Lightbox";
 import { ACTIONS, toggleFav } from "../components/actions";
 import { Tip, fmtSec } from "../components/ui";
 
-const ASPECTS = ["1:1", "4:5", "3:4", "2:3", "9:16", "16:9", "21:9"];
+const ASPECTS = ["1:1", "4:5", "3:4", "2:3", "9:16", "3:2", "16:9", "21:9"];
 const CAMERA = [["static camera", "Статично"], ["slow camera push-in", "Наезд"], ["slow camera pull-out", "Отъезд"], ["smooth camera pan", "Панорама"], ["smooth camera orbit around the subject", "Облёт"]];
 const EXAMPLES = [
   { t: "Кот-астронавт в открытом космосе, Земля на фоне", p: "photo-real" },
@@ -106,6 +106,9 @@ export default function Create() {
   const [character, setCharacter] = useState(null);
   const [chars, setChars] = useState([]);
   const [attest, setAttest] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [aiNote, setAiNote] = useState(null); // {name, reason, loras, suggest, prompt} — что выбрал ИИ
+  const autoMode = draft.auto !== false; // «Авто»: модель и LoRA выбирает ИИ (по умолчанию включено)
   const [history, setHistory] = useState([]);
   const [recent, setRecent] = useState(() => ls.get("recentPresets", ["photo-real", "anime", "watercolor", "edit", "video"]));
   const ta = useRef(); const fileIn = useRef();
@@ -137,6 +140,23 @@ export default function Create() {
   const lastIds = new Set(lastItems.map((x) => x.id));
   const feed = [...lastItems, ...history.filter((x) => !lastIds.has(x.id))].filter((it) => !(safeMode && it.nsfw));
   const showAspect = (media === "image" || media === "video") && p?.workflow !== "klein_edit";
+  // Формат «как у исходника»: при генерации из картинки размер повторяет её пропорции (видео — ближайший стандартный формат)
+  const srcRatio = (pp = p) => {
+    const r = refs.find((x) => x.width && x.height);
+    if (!r) return null;
+    if ((pp.media || "image") !== "video") return `${r.width}:${r.height}`;
+    const k = Math.log(r.width / r.height);
+    return ASPECTS.reduce((best, a) => { const [x, y] = a.split(":").map(Number); return Math.abs(Math.log(x / y) - k) < Math.abs(Math.log(best.split(":")[0] / best.split(":")[1]) - k) ? a : best; }, "1:1");
+  };
+  const aspectFor = (pp = p) => (refs.length && (draft.aspect === "src" || pp.workflow === "klein_edit") ? srcRatio(pp) : null) || (draft.aspect === "src" ? "2:3" : draft.aspect);
+  const hadRefs = useRef(false);
+  useEffect(() => {
+    if (refs.length && !hadRefs.current) setDraft({ aspect: "src" });  // добавили исходник — формат подстраивается под него
+    if (!refs.length && draft.aspect === "src") setDraft({ aspect: "2:3" });
+    hadRefs.current = refs.length > 0;
+    // у референсов без размеров (персонажи и т.п.) узнаём размер по самой картинке
+    refs.forEach((r, i) => { if (!r.width && r.url && !/\.(mp4|webm|mov)$/i.test(r.name || "")) { const im = new Image(); im.onload = () => setRefs((cur) => cur.map((x, j) => j === i && x.name === r.name ? { ...x, width: im.naturalWidth, height: im.naturalHeight } : x)); im.src = r.url; } });
+  }, [refs]);
 
   const upload = async (files) => {
     const list = [...files].slice(0, maxRefs - refs.length);
@@ -162,22 +182,53 @@ export default function Create() {
     setBusy(mode); setVariants(null);
     try {
       const r = await api.post("/api/assist", { text: draft.text, preset: p.id, mode, reference: refs[0]?.name, focus, style_hint: chip?.hint,
-        aspect: draft.aspect, images: refs.map((x) => x.name).filter(Boolean), seconds, camera });
+        aspect: aspectFor(), images: refs.map((x) => x.name).filter(Boolean), seconds, camera });
       if (mode === "variants") setVariants(r.variants);
       else { setOriginal(draft.text); setDraft({ text: r.prompt }); if (r.negative) setNegative(r.negative); }
     } catch (e) { toast(e.message, "error"); }
     setBusy(null);
   };
 
-  const body = (text) => ({
-    preset: p.id, mode: draft.mode, aspect: draft.aspect, count: draft.count, user_text: original || text, character: character?.id, attest_fictional: attest,
+  // ИИ: по описанию своими словами (и прикреплённым фото) выбирает модель, формат и LoRA и пишет промпт по официальной инструкции модели.
+  // keep — модель выбрана вручную: остаёмся на ней, а если ИИ считает, что нужна другая, он это подскажет; force — перейти на подсказанную
+  const runAuto = async ({ keep = !autoMode, force } = {}) => {
+    const imgs = refs.map((x) => x.name).filter(Boolean);
+    const r = await api.post("/api/assist/auto", { text: draft.text, images: imgs, ref_kind: imgs.some((n) => /\.(mp4|webm|mov)$/i.test(n)) ? "video" : "image",
+      allow_nsfw: !safeMode, current: p.id, keep, force });
+    if (r.preset !== p.id) pick(r.preset);
+    setOriginal(original ?? draft.text); setDraft({ text: r.prompt, ...(r.aspect && !refs.length ? { aspect: r.aspect } : {}) }); setNegative(r.negative || "");
+    setLoras((r.loras || []).map((l) => ({ name: l.name, weight: l.weight })));
+    setAiNote({ name: r.preset_name, reason: r.reason, loras: r.loras || [], suggest: r.suggest, prompt: r.prompt });
+    return { r, pr: presets.find((x) => x.id === r.preset) || p };
+  };
+  const aiAssist = async (opts) => {
+    setMenu(false);
+    if (!draft.text.trim()) { toast("Напишите своими словами, что хотите получить", "info"); ta.current?.focus(); return; }
+    setBusy("auto"); setVariants(null);
+    try { await runAuto(opts); } catch (e) { toast(e.message, "error"); }
+    setBusy(null);
+  };
+
+  const body = (text, pp = p) => ({
+    preset: pp.id, mode: draft.mode, aspect: aspectFor(pp), count: draft.count, user_text: original || text, character: character?.id, attest_fictional: attest,
     prompt: text + (chip ? `, ${chip.hint}` : "") + (character?.description ? `. ${character.description}` : ""), negative,
     images: refs.map((r) => r.name).filter(Boolean), focus, ref_strength: strength,
     seed: seed ? Number(seed) : undefined, seed_lock: seedLock, steps: steps ? Number(steps) : undefined, cfg: cfg ? Number(cfg) : undefined,
-    loras: loras.filter((l) => l.name), ...(media === "video" ? { seconds, camera, smooth } : {}),
-    ...(p.requires === "video" ? { videos: refs.map((r) => r.name), images: [] } : {}),
+    loras: loras.filter((l) => l.name), ...((pp.media || "image") === "video" ? { seconds, camera, smooth } : {}),
+    ...(pp.requires === "video" ? { videos: refs.map((r) => r.name), images: [] } : {}),
   });
   const create = async (textOver, presetOver) => {
+    // «Авто»: если ИИ ещё не обработал этот текст — сначала он выбирает модель, LoRA и пишет промпт, потом сразу генерация
+    if (autoMode && !presetOver && textOver === undefined && draft.text.trim() && aiNote?.prompt !== draft.text) {
+      setBusy("create"); setVariants(null);
+      try {
+        const userText = original ?? draft.text;
+        const { r, pr } = await runAuto({ keep: false });
+        await api.post("/api/generate", { ...body(r.prompt, pr), aspect: refs.length ? aspectFor(pr) : (r.aspect || aspectFor(pr)), negative: r.negative || "", user_text: userText,
+          loras: (r.loras || []).map((l) => ({ name: l.name, weight: l.weight })) });
+      } catch (e) { toast(e.message, "error"); }
+      setBusy(null); return;
+    }
     const text = (textOver ?? draft.text).trim();
     const preset = presetOver ? presets.find((x) => x.id === presetOver) : p;
     if (!preset) return;
@@ -191,12 +242,12 @@ export default function Create() {
   useEffect(() => {
     const k = (e) => {
       if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); create(); }
-      if (e.key === "Escape" && lb === null) { const run = queue.find((q) => q.state === "running"); if (run) api.post(`/api/jobs/${run.id}/cancel`); setMenu(false); setPanel(false); }
+      if (e.key === "Escape" && lb === null) { const run = queue.find((q) => q.state === "running"); if (run) api.post(`/api/jobs/${run.id}/cancel`); setMenu(false); setPanel(false); setPicker(false); }
     };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   });
 
-  const toCreateWith = async (it, preset) => { try { const r = await api.post(`/api/items/${it.id}/to-input`); setRefs([r]); pick(preset); setDraft({ text: "" }); ta.current?.focus(); } catch (e) { toast(e.message, "error"); } };
+  const toCreateWith = async (it, preset) => { try { const r = await api.post(`/api/items/${it.id}/to-input`); setRefs([r]); pick(preset); setDraft({ auto: false }); setLoras([]); setAiNote(null); setDraft({ text: "" }); ta.current?.focus(); } catch (e) { toast(e.message, "error"); } };
 
   if (!p) return <div className="p-8"><div className="h-12 w-80 rounded-xl skeleton" /></div>;
   return (
@@ -207,7 +258,7 @@ export default function Create() {
           <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
             <img src="/logo.svg" className="w-16 h-16 mb-5" alt="" />
             <h1 className="text-2xl font-bold mb-2">Здесь пока пусто — создайте первую картинку</h1>
-            <p className="muted mb-6 max-w-md">Напишите идею внизу своими словами или нажмите на пример.</p>
+            <p className="muted mb-6 max-w-md">Опишите внизу своими словами, что хотите, и нажмите «ИИ» — он сам выберет модель и напишет промпт. Или нажмите на пример.</p>
             <div className="flex gap-2 flex-wrap justify-center">{EXAMPLES.map((e) => <button key={e.t} className="chip !h-10 !px-4" onClick={() => { setDraft({ text: e.t }); pick(e.p); create(e.t, e.p); }}><Sparkles size={14} />{e.t}</button>)}</div>
           </div>
         ) : (
@@ -254,16 +305,33 @@ export default function Create() {
             </div>
           </div>}
 
-          <div className="glass rounded-3xl p-2 shadow-2xl">
-            {/* пресеты: вкладки групп + пресеты выбранной группы — всё всегда видно */}
-            <div className="flex items-center gap-1 px-1 pt-1 flex-wrap">
-              {groups.map((g) => <button key={g} onClick={() => { setGroup(g); if (p.group !== g) { const inG = visible.filter((x) => x.group === g); const last = recent.map((id) => inG.find((x) => x.id === id)).find(Boolean); if (last || inG[0]) pick((last || inG[0]).id); } }} className={`h-7 px-2.5 rounded-lg text-xs font-medium transition ${g === curGroup ? "text-[var(--text)] bg-[var(--panel-2)]" : "dim hover:text-[var(--text)]"}`}
-                style={g === "18+" && g === curGroup ? { color: "var(--color-pink)" } : {}}>{GROUP_SHORT[g] || g}</button>)}
-            </div>
-            <div className="flex gap-1.5 flex-wrap px-1 pt-1.5 pb-2">
-              {visible.filter((x) => x.group === curGroup).map((x) => <Tip key={x.id} text={x.description}><button onClick={() => pick(x.id)} className={`chip !h-8 ${x.id === p.id ? "on" : ""}`}
-                style={x.nsfw && x.id === p.id ? { background: "var(--color-pink)", borderColor: "var(--color-pink)" } : {}}>{x.name}</button></Tip>)}
-            </div>
+          <div className="glass rounded-3xl p-2 shadow-2xl relative">
+            {/* выбор модели: все пресеты по группам с описанием — открывается по кнопке внизу */}
+            {picker && <>
+              <div className="fixed inset-0 z-30" onClick={() => setPicker(false)} />
+              <div className="absolute bottom-full left-0 right-0 mb-2 panel rounded-2xl p-3 z-40 animate-pop max-h-[60vh] overflow-y-auto shadow-2xl">
+                <button onClick={() => { setDraft({ auto: true }); setPicker(false); setAiNote(null); }} className="w-full text-left rounded-xl px-3 py-2.5 mb-3 flex items-center gap-3 transition hover:bg-[var(--panel-2)]"
+                  style={autoMode ? { background: "var(--panel-2)", boxShadow: "inset 0 0 0 1px var(--color-accent)" } : {}}>
+                  <Wand2 size={18} className="shrink-0" style={{ color: "var(--color-accent-hi)" }} />
+                  <div><div className="text-sm font-semibold">Авто — ИИ выбирает сам</div>
+                    <div className="text-[11px] dim leading-snug">По вашему описанию и фото ИИ подберёт модель, формат кадра и LoRA и напишет промпт — просто нажмите «Создать»</div></div></button>
+                {groups.map((g) => <div key={g} className="mb-3 last:mb-0">
+                  <div className="label mb-1.5 px-1" style={g === "18+" ? { color: "var(--color-pink)" } : {}}>{g}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+                    {visible.filter((x) => x.group === g).map((x) => <button key={x.id} onClick={() => { pick(x.id); setDraft({ auto: false }); setLoras([]); setPicker(false); setAiNote(null); }}
+                      className="text-left rounded-xl px-3 py-2 transition hover:bg-[var(--panel-2)]"
+                      style={!autoMode && x.id === p.id ? { background: "var(--panel-2)", boxShadow: `inset 0 0 0 1px ${x.nsfw ? "var(--color-pink)" : "var(--color-accent)"}` } : {}}>
+                      <div className="text-sm font-medium">{x.name}</div>
+                      <div className="text-[11px] dim line-clamp-2 leading-snug">{x.description}</div></button>)}
+                  </div></div>)}
+              </div></>}
+            {aiNote && <div className="flex items-center gap-2 px-3 pt-1 pb-1.5 text-xs" style={{ color: "var(--color-accent-hi)" }}>
+              <Wand2 size={12} className="shrink-0" />
+              {aiNote.suggest
+                ? <><span className="truncate">Промпт написан для «{aiNote.name}», но для этой задачи лучше подойдёт «{aiNote.suggest.name}»{aiNote.suggest.reason ? ` — ${aiNote.suggest.reason}` : ""}</span>
+                    <button className="chip !h-6 !text-xs shrink-0" onClick={() => aiAssist({ keep: false, force: aiNote.suggest.preset })} disabled={!!busy}>Переключить</button></>
+                : <span className="truncate">ИИ: «{aiNote.name}»{aiNote.loras?.length ? ` + LoRA ${aiNote.loras.map((l) => l.label).join(", ")}` : ""}{aiNote.reason ? ` — ${aiNote.reason}` : ""}</span>}
+              <button className="dim hover:text-[var(--text)] ml-auto shrink-0" onClick={() => setAiNote(null)} aria-label="Скрыть"><X size={12} /></button></div>}
             {/* референсы */}
             {refs.length > 0 && <div className="flex gap-2 px-2 pb-2">{refs.map((r, i) => (
               <div key={i} className="relative w-14 h-14 rounded-xl overflow-hidden" style={{ border: "1px solid var(--line)" }}>
@@ -288,15 +356,15 @@ export default function Create() {
                 <button className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" onClick={() => fileIn.current.click()} aria-label="Добавить картинку">
                   {busy === "upload" ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={19} />}</button></Tip>
               <textarea ref={ta} value={draft.text} rows={1} onChange={(e) => setDraft({ text: e.target.value })}
-                placeholder={p.workflow === "klein_edit" ? "Что изменить? «сделай ночь», «добавь очки»…" : media === "video" ? "Что происходит в видео?" : "Опишите, что хотите увидеть…"}
+                placeholder={p.workflow === "klein_edit" && refs.length ? "Что изменить? «сделай ночь», «добавь очки»…" : "Опишите своими словами, что хотите: фото, видео, правку картинки… и нажмите «ИИ»"}
                 className="order-first sm:order-none basis-full sm:basis-auto flex-1 bg-transparent resize-none outline-none py-2.5 px-1 sm:px-0 text-[15px] leading-relaxed max-h-56" style={{ color: "var(--text)" }} />
               {original !== null && <Tip text="Вернуть мой текст"><button className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center muted hover:bg-[var(--panel-2)]" onClick={() => { setDraft({ text: original }); setOriginal(null); }}><Undo2 size={17} /></button></Tip>}
-              <div className="relative shrink-0 flex h-10 rounded-xl" style={{ border: "1px solid var(--line)" }}>
-                <Tip text="Улучшить промпт по официальным рекомендациям модели"><button className="h-full px-3 rounded-l-xl flex items-center gap-1.5 text-sm muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" onClick={() => assist("improve")} disabled={!!busy && busy !== "upload"}>
-                  {["improve", "exact", "surprise", "variants"].includes(busy) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span className="hidden sm:inline">Улучшить</span></button></Tip>
-                <Tip text="Другие режимы: точно как написал, удиви меня, 5 вариантов"><button className="h-full px-2 rounded-r-xl muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" style={{ borderLeft: "1px solid var(--line)" }} onClick={() => setMenu(!menu)} aria-label="Другие режимы"><ChevronDown size={15} /></button></Tip>
-                {menu && <div className="absolute bottom-12 right-0 panel rounded-2xl p-1.5 w-56 shadow-2xl animate-pop z-20">
-                  {[["exact", "Точно как написал", Languages], ["surprise", "Удиви меня", Dices], ["variants", "5 вариантов", Layers]].map(([m, l, I]) =>
+              <div className="relative shrink-0 flex h-10 rounded-xl" style={{ border: "1px solid var(--color-accent)" }}>
+                <Tip text="Опишите своими словами — ИИ сам выберет модель и напишет для неё правильный промпт"><button className="h-full px-3 rounded-l-xl flex items-center gap-1.5 text-sm font-semibold hover:bg-[var(--panel-2)]" style={{ color: "var(--color-accent-hi)" }} onClick={() => aiAssist()} disabled={!!busy && busy !== "upload"}>
+                  {["auto", "improve", "exact", "surprise", "variants"].includes(busy) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span>ИИ</span></button></Tip>
+                <Tip text="Помощник для выбранной модели: улучшить, точно как написал, удиви меня, 5 вариантов"><button className="h-full px-2 rounded-r-xl muted hover:text-[var(--text)] hover:bg-[var(--panel-2)]" style={{ borderLeft: "1px solid var(--color-accent)" }} onClick={() => setMenu(!menu)} aria-label="Другие режимы"><ChevronDown size={15} /></button></Tip>
+                {menu && <div className="absolute bottom-12 right-0 panel rounded-2xl p-1.5 w-72 shadow-2xl animate-pop z-20">
+                  {[["improve", `Улучшить промпт для «${p.name}»`, Wand2], ["exact", "Точно как написал", Languages], ["surprise", "Удиви меня", Dices], ["variants", "5 вариантов", Layers]].map(([m, l, I]) =>
                     <button key={m} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-[var(--panel-2)]" onClick={() => assist(m)}><I size={15} />{l}</button>)}
                 </div>}
               </div>
@@ -305,10 +373,14 @@ export default function Create() {
             </div>
             {/* режим, пропорции, количество */}
             <div className="flex items-center gap-2 px-2 pt-2 pb-1 text-xs flex-wrap">
+              <Tip text={autoMode ? "Авто: модель и LoRA выбирает ИИ. Нажмите, чтобы выбрать вручную" : "Модель выбрана вручную. Нажмите, чтобы сменить или включить «Авто»"}><button onClick={() => setPicker(!picker)} className="h-7 pl-2.5 pr-2 rounded-lg flex items-center gap-1.5 font-medium hover:bg-[var(--panel-2)]"
+                style={autoMode ? { border: "1px solid var(--color-accent)", color: "var(--color-accent-hi)" } : { border: `1px solid ${p.nsfw ? "var(--color-pink)" : "var(--line)"}`, ...(p.nsfw ? { color: "var(--color-pink)" } : {}) }}>
+                {autoMode ? <Wand2 size={12} /> : <LayoutGrid size={12} />}{autoMode ? `Авто${aiNote?.name ? ` · ${aiNote.name}` : ""}` : p.name}<ChevronDown size={12} /></button></Tip>
               <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--line)" }}>
                 {[["draft", "Черновик", Zap], ["quality", "Качество", Gem]].map(([m, l, I]) => <button key={m} onClick={() => setDraft({ mode: m })} className={`h-7 px-2.5 flex items-center gap-1 ${draft.mode === m ? "bg-[var(--color-accent)] text-white" : "muted hover:bg-[var(--panel-2)]"}`}><I size={12} />{l}{p.eta?.[m] ? <span className="opacity-70">~{fmtSec(p.eta[m])}</span> : null}</button>)}
               </div>
-              {showAspect && <select className="field !w-auto !py-1 !text-xs" value={draft.aspect} onChange={(e) => setDraft({ aspect: e.target.value })}>{ASPECTS.map((a) => <option key={a}>{a}</option>)}</select>}
+              {showAspect && <Tip text={draft.aspect === "src" ? `Пропорции как у исходной картинки (${srcRatio()?.replace(":", "×") || "—"})` : "Формат кадра"}><select className="field !w-auto !py-1 !text-xs" value={draft.aspect} onChange={(e) => setDraft({ aspect: e.target.value })}>
+                {refs.length > 0 && <option value="src">Как у исходника</option>}{ASPECTS.map((a) => <option key={a}>{a}</option>)}</select></Tip>}
               {media === "image" && <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--line)" }}>{[1, 2, 3, 4].map((n) => <button key={n} onClick={() => setDraft({ count: n })} className={`w-7 h-7 ${draft.count === n ? "bg-[var(--color-accent)] text-white" : "muted hover:bg-[var(--panel-2)]"}`}>{n}</button>)}</div>}
               {media === "video" && <span className="muted">{seconds} с{camera ? ` · ${CAMERA.find((c) => c[0] === camera)?.[1]}` : ""}</span>}
               <span className="flex-1" />

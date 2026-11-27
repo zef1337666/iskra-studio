@@ -9,3 +9,4 @@ base_model: SeedVR2
 eta:
   draft: 10
   quality: 33
+description: "Увеличить картинку в 2–4 раза: больше деталей и резкости, без перерисовки."

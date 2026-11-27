@@ -1,0 +1,29 @@
+# Каталог LoRA для автоподбора кнопкой «ИИ».
+# file — файл в models/loras; base — к какой модели подходит (krea2, klein, sdxl); weight — сила;
+# trigger — слово, которое нужно добавить в промпт; when — когда её брать (по-английски, читает ИИ); skip: true — не предлагать.
+# Новые LoRA, которых здесь нет, подхватываются сами (по данным из .meta.json / файла), но лучше дописать сюда when.
+- file: Verite_realism.safetensors
+  base: krea2
+  weight: 0.6
+  label: Vérité — реализм
+  when: realistic candid and amateur photos of people, natural skin and bodies, adult content realism
+- file: RealisticSnapshotKrea2V2.safetensors
+  base: krea2
+  weight: 0.8
+  label: Realistic Snapshot
+  when: everyday real-life snapshot look, natural light and true-to-life detail, scenes, places and people that should look like a real photo
+- file: Famegrid-Spice-Preview-V2.safetensors
+  base: krea2
+  weight: 0.8
+  trigger: famegrid
+  label: Famegrid
+  when: ONLY when the user explicitly asks for an instagram / influencer / blogger / selfie social-media look
+# служебные и стилевые (стили уже встроены в свои пресеты)
+- {file: krea2_identity_edit_v2.safetensors, skip: true}
+- {file: krea2_general_edit_v2.safetensors, skip: true}
+- {file: krea2_darkbrush.safetensors, skip: true}
+- {file: krea2_retroanime.safetensors, skip: true}
+- {file: krea2_softwatercolor.safetensors, skip: true}
+- {file: minimax_h3_turbo_8step_v1.2.safetensors, skip: true}
+- {file: wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors, skip: true}
+- {file: wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors, skip: true}

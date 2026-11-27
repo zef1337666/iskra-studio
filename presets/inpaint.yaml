@@ -11,3 +11,4 @@ eta:
   draft: 10
   quality: 14
 prompt_template: 'Add or change the following in <ref_image_0>: {prompt}. Keep the composition, lighting and everything else the same.'
+description: "Перерисовать только выделенную кистью область, остальное не меняется."

@@ -9,3 +9,4 @@ base_model: BiRefNet
 eta:
   draft: 2
   quality: 2
+description: "Убрать фон: прозрачный PNG с одним объектом или человеком."

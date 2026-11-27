@@ -233,8 +233,10 @@ def krea2_identity(p, mode="quality"):
     model, _ = _loras(g, unet.out, loras)
     model = g.add("ModelSamplingFlux", "Сдвиг", model=model, max_shift=1.15, base_shift=0.5, width=w, height=h).out
     refs = {f"image{i + 1}": g.add("LoadImage", f"Персонаж {i + 1}", image=n)[0] for i, n in enumerate(p["images"][:2])}
-    cond = g.add("TextEncodeQwenImageEditPlus", "Промпт + персонаж", clip=clip.out, prompt=p["prompt"], vae=vae.out, **refs)
-    pos = g.add("FluxKontextMultiReferenceLatentMethod", "Референс", conditioning=cond.out, reference_latents_method="index_timestep_zero")
+    # Проверено замером сходства лиц (ArcFace, 2026-11-27): крупный план лица вторым референсом, референс крупнее 1 Мп и «зрение»
+    # Qwen-VL на 768/1024 px на встроенных нодах сходство не повышают; LoRA реализма (Vérité) — понижает, поэтому в пресете её нет.
+    cond = g.add("TextEncodeQwenImageEditPlus", "Промпт + персонаж", clip=clip.out, prompt=p["prompt"], vae=vae.out, **refs).out
+    pos = g.add("FluxKontextMultiReferenceLatentMethod", "Референс", conditioning=cond, reference_latents_method="index_timestep_zero")
     neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
     guider = g.add("CFGGuider", "Гайдер", model=model, positive=pos.out, negative=neg.out, cfg=1.0)
     steps = int(p.get("steps") or (8 if mode == "draft" else 10))

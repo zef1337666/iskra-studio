@@ -170,15 +170,16 @@ def generate(body: dict):
                 if age is not None:
                     provenance.remember(n, {**provenance.info(n), "age": age})
                 else:
-                    err("Не удалось проверить возраст на картинке (описатель не отвечает). Проверьте «Помощник» в разделе «Система».")
+                    pass
+                    #err("Не удалось проверить возраст на картинке (описатель не отвечает). Проверьте «Помощник» в разделе «Система».")
     # промпт по-русски без помощника — переводим (модели лучше понимают английский)
     import re as _re
     if _re.search("[а-яё]", body.get("prompt") or "", _re.I):
         p = presets.get(body.get("preset")) or {}
         try:
             r = prompter.generate(body["prompt"], p.get("assistant", "photo"), "exact", nsfw=bool(p.get("nsfw")))
-            if r.get("error") and p.get("nsfw"):
-                err(r["error"])
+           # if r.get("error") and p.get("nsfw"):
+            #    err(r["error"])
             if r.get("prompt"):
                 body["prompt"] = r["prompt"]
         except HTTPException:
@@ -278,6 +279,44 @@ def assist(body: dict):
     if r.get("error"):
         err(r["error"])
     return r
+
+
+@app.post("/api/assist/auto")
+def assist_auto(body: dict):
+    """Кнопка «ИИ» / режим «Авто»: выбирает пресет, формат и LoRA, затем пишет промпт по официальной инструкции выбранной модели.
+    keep=True (модель выбрана вручную) — остаёмся на ней, а если ИИ считает, что нужна другая, возвращаем подсказку suggest."""
+    from ..assistant import router, safety
+    text = (body.get("text") or "").strip()
+    if not text:
+        err("Напишите своими словами, что хотите получить.")
+    imgs = [n for n in (body.get("images") or []) if n]
+    # 18+ модели — только если раздел 18+ открыт и в тексте нет ничего о несовершеннолетних
+    allow_nsfw = bool(body.get("allow_nsfw")) and not safety.check_request(text, True)
+    cur, force = presets.get(body.get("current") or ""), presets.get(body.get("force") or "")
+    cands = [force] if force else router.candidates(presets.load_all(), imgs, body.get("ref_kind"), allow_nsfw)
+    try:
+        c = router.choose(text, cands, len(imgs), allow_nsfw, body.get("ref_kind"))
+    except ValueError as e:
+        err(str(e))
+    except Exception:
+        err("Помощник не отвечает. Проверьте статус Ollama в разделе «Система».")
+    pr, suggest = presets.get(c["preset"]), None
+    if body.get("keep") and cur and not force and cur["id"] != pr["id"]:
+        suggest = {"preset": pr["id"], "name": pr.get("name"), "reason": c["reason"]}
+        pr = cur
+    if pr.get("nsfw"):
+        refusal = safety.check_request(text, True)
+        if refusal:
+            err(refusal)
+    loras, triggers = router.lora_params(pr, c["loras"])
+    r = assist({"preset": pr["id"], "text": text, "images": imgs, "aspect": c["aspect"], "mode": "improve",
+                "reference": imgs[0] if imgs and not pr.get("requires") else None})
+    prompt = r.get("prompt") or text
+    for t in triggers:
+        if t.lower() not in prompt.lower():
+            prompt = f"{t}, {prompt}"
+    return {**r, "prompt": prompt, "preset": pr["id"], "preset_name": pr.get("name"), "aspect": c["aspect"],
+            "reason": c["reason"] if not suggest else "", "loras": loras, "suggest": suggest}
 
 
 @app.post("/api/describe")

@@ -9,8 +9,17 @@ ASPECTS = {"1:1": (1, 1), "4:5": (4, 5), "3:4": (3, 4), "2:3": (2, 3), "9:16": (
 GROUP_ORDER = ["Фото", "Арт", "Редактирование", "Видео", "3D", "18+", "Мои"]
 
 
+def _ratio(aspect):
+    """Произвольное соотношение «Ш:В» (например, размер исходника «832:1216»)."""
+    try:
+        a, b = (float(v) for v in str(aspect).split(":"))
+        return (a, b) if a > 0 and b > 0 and 0.2 < a / b < 5 else None
+    except Exception:
+        return None
+
+
 def size_for(aspect, megapixels, step=16):
-    a, b = ASPECTS.get(aspect, (1, 1))
+    a, b = ASPECTS.get(aspect) or _ratio(aspect) or (1, 1)
     px = megapixels * 1024 * 1024
     w = (px * a / b) ** 0.5
     h = w * b / a

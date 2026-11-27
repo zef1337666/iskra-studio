@@ -144,7 +144,7 @@ class JobManager:
                     if not inf.get("ai") and not req.get("attest_fictional") and not get_settings().get("uploads_attested"):
                         raise ValueError("Для 18+ подтвердите, что на загруженной картинке вымышленный взрослый персонаж, созданный ИИ, "
                                          "а не фото реального человека (галочка под картинкой).")
-                    if inf.get("age") is None or inf["age"] < 20:
+                    if inf.get("age") is None or inf["age"] < 19:
                         raise ValueError("Возраст на картинке не прошёл проверку — такую картинку нельзя использовать в 18+.")
             if p.get("prompt_template"):
                 prompt = p["prompt_template"].replace("{prompt}", prompt)

@@ -11,6 +11,8 @@ class Graph:
         nid = str(next(self._ids))
         node = {"class_type": class_type, "inputs": {}}
         for k, v in inputs.items():
+            if v is None:  # необязательный вход не подключён
+                continue
             node["inputs"][k] = v.ref if isinstance(v, Out) else v
         if title:
             node["_meta"] = {"title": title}

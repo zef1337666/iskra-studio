@@ -9,3 +9,4 @@ base_model: MMAudio
 eta:
   draft: 50
   quality: 100
+description: "Добавить к видео звук, подходящий к происходящему."

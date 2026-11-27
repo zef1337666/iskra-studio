@@ -9,3 +9,4 @@ base_model: FLUX.3 Klein
 eta:
   draft: 8
   quality: 23
+description: "Исправить лицо и руки на готовой картинке: чётче черты, правильные пальцы."
