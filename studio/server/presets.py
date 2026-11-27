@@ -26,6 +26,29 @@ def size_for(aspect, megapixels, step=16):
     return int(round(w / step)) * step, int(round(h / step)) * step
 
 
+def caps(p):
+    """Что умеет пресет: t2i, img2img, edit, char, pose, t2v, img2v, 2img2v, v2v, img2-3d."""
+    wf, req, media = p.get("workflow"), p.get("requires"), p.get("media", "image")
+    if media == "3d" or wf == "image_to_3d":
+        return ["img2-3d"]
+    if req == "video":
+        return ["v2v"]
+    if media == "video":
+        if req == "images2":
+            return ["2img2v"]
+        if req == "image":
+            return ["img2v"]
+        return ["t2v", "img2v"] if wf == "h3_video" else ["t2v"]  # MiniMax-H3 — и из текста, и из картинки (первый кадр)
+    if req in ("image", "images2"):
+        if wf == "krea2_identity" or "same person" in (p.get("prompt_prefix") or ""):
+            return ["char"]
+        return ["pose"] if wf == "zimage_control" else ["edit"]
+    out = ["t2i"]
+    if p.get("ref_workflow") or (p.get("params") or {}).get("img2img"):
+        out.append("img2img")
+    return out
+
+
 def load_all():
     out = []
     for f in sorted(PRESETS_DIR.glob("*.yaml")):
@@ -35,6 +58,7 @@ def load_all():
             p = {"id": f.stem, "name": f.stem, "error": f"Ошибка в файле: {e}"}
         p.setdefault("id", f.stem)
         p["_file"] = f.name
+        p["_caps"] = caps(p)
         out.append(p)
     out.sort(key=lambda p: (GROUP_ORDER.index(p.get("group")) if p.get("group") in GROUP_ORDER else 99, p.get("order", 50), p.get("name", "")))
     return out

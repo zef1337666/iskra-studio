@@ -139,6 +139,8 @@ def candidates(all_presets, images, ref_kind, allow_nsfw):
             continue
         if images and ref_kind != "video" and req == "video":
             continue
+        if images and ref_kind != "video" and not set(p.get("_caps") or []) & {"img2img", "edit", "char", "pose", "img2v", "2img2v", "img2-3d"}:
+            continue  # картинка прикреплена, а модель её не использует (только из текста) — не предлагаем
         if req == "images2" and len(images) < 2:
             continue
         out.append(p)
