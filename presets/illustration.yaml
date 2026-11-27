@@ -13,3 +13,5 @@ eta:
   draft: 8
   quality: 9
 description: Цифровая иллюстрация, концепт-арт, постеры.
+params:
+  img2img: true

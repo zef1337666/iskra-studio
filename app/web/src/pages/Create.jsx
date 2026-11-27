@@ -230,7 +230,7 @@ export default function Create() {
           {panel && <div className="glass rounded-2xl p-4 mb-2 space-y-3.5 animate-pop max-h-[50vh] overflow-y-auto text-sm">
             {p.chips && <div><div className="label mb-1.5">Фотостиль</div><div className="flex gap-1.5 flex-wrap">{p.chips.map((c) => <button key={c.label} className={`chip !h-7 !text-xs ${chip?.label === c.label ? "on" : ""}`} onClick={() => setChip(chip?.label === c.label ? null : c)}>{c.label}</button>)}</div></div>}
             {refs.length > 0 && !needsRef && <div><div className="label mb-1.5">Что взять с картинки</div><div className="flex gap-1.5 flex-wrap">{FOCUS.map((f) => <button key={f.id} className={`chip !h-7 !text-xs ${focus === f.id ? "on" : ""}`} onClick={() => setFocus(f.id)}>{f.label}</button>)}</div>
-              {p.ref_workflow && <div className="flex items-center gap-3 mt-2 muted"><span className="w-28">Сила влияния</span><input type="range" min="0" max="1" step="0.05" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="flex-1" /><span className="w-10 text-right">{Math.round(strength * 100)}%</span></div>}</div>}
+              {false && <div className="flex items-center gap-3 mt-2 muted"><span className="w-28">Сила влияния</span><input type="range" min="0" max="1" step="0.05" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="flex-1" /><span className="w-10 text-right">{Math.round(strength * 100)}%</span></div>}</div>}
             {media === "video" && <div className="space-y-2">
               <div className="flex items-center gap-3"><span className="label w-28">Длительность</span><input type="range" min="3" max="8" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="flex-1" /><span className="w-10 text-right">{seconds} с</span></div>
               <div className="flex gap-1.5 flex-wrap"><span className="label self-center w-28">Камера</span>{CAMERA.map(([v, l]) => <button key={v} className={`chip !h-7 !text-xs ${camera === v ? "on" : ""}`} onClick={() => setCamera(camera === v ? null : v)}>{l}</button>)}</div>
@@ -271,6 +271,10 @@ export default function Create() {
                 {r.ai && <span className="absolute bottom-0.5 left-0.5 text-[9px] px-1 rounded bg-black/70 text-white">ИИ</span>}
                 <button onClick={() => setRefs(refs.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center" aria-label="Убрать"><X size={11} /></button>
               </div>))}
+              {!needsRef && (p.ref_workflow || p.params?.img2img) && <div className="flex items-center gap-2 text-xs muted self-center min-w-56">
+                <Tip text="Насколько результат держится за картинку: меньше — свободнее, больше — ближе к исходнику"><span>Похожесть</span></Tip>
+                <input type="range" min="0.1" max="0.95" step="0.05" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="flex-1" />
+                <span className="w-9 text-right">{Math.round(strength * 100)}%</span></div>}
               {p.nsfw && refs.some((r) => r.name?.startsWith("up_") && !r.ai) && !settings?.uploads_attested &&
                 <label className="flex gap-2 items-start text-xs cursor-pointer max-w-md self-center"><input type="checkbox" checked={attest} onChange={async (e) => { setAttest(e.target.checked); if (e.target.checked) useStore.setState({ settings: await api.put("/api/settings", { uploads_attested: true }) }); }} className="mt-0.5" />
                   <span>Подтверждаю: на картинке вымышленный взрослый персонаж, созданный ИИ (спрошу один раз)</span></label>}

@@ -1,7 +1,7 @@
 id: video18
 name: Видео 18+ реализм
 group: 18+
-order: 5
+order: 6
 nsfw: true
 media: video
 workflow: wan22_video

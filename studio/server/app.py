@@ -253,6 +253,12 @@ def assist(body: dict):
             err("Описатель картинок не отвечает. Проверьте статус Ollama в разделе «Система».")
     try:
         wf = p.get("workflow")
+        from ..assistant import klein_upsampler
+        if (wf in ("klein_t2i", "klein_edit", "klein_outpaint") and not p.get("nsfw") and body.get("mode", "improve") == "improve"
+                and klein_upsampler.available() and services.COMFY.state == "running"):
+            # официальный дообученный улучшатель BFL — точнее всего понимает просьбы для Klein (тест 2026-11-26)
+            imgs = [n for n in (body.get("images") or []) if n] if wf != "klein_t2i" else []
+            return klein_upsampler.run(body.get("text", ""), aspect=body.get("aspect"), images=imgs)
         if wf in prompter.OFFICIAL_BY_WORKFLOW:
             imgs = [str(INPUT / n) for n in (body.get("images") or [])]
             # стиль пресета (акварель, тёмная кисть…) должен попасть в промпт, иначе помощник выберет фото

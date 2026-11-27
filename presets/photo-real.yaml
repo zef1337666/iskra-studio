@@ -12,7 +12,7 @@ megapixels:
   quality: 1.5
 eta:
   draft: 6
-  quality: 11
+  quality: 22
 description: 'Фотореалистичные снимки: люди, животные, предметы, интерьеры.'
 chips:
 - label: Студийный свет
@@ -27,3 +27,6 @@ chips:
   hint: 35mm film photo, Kodak Portra colors, film grain
 - label: Глянец
   hint: glossy magazine photoshoot, editorial fashion lighting, high-end retouch
+params:
+  finish_upscale: true
+  finish_scale: 1.5

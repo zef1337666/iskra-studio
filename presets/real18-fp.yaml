@@ -1,0 +1,41 @@
+id: real18-fp
+name: Реализм 18+ (FinePorn)
+group: 18+
+order: 2
+nsfw: true
+media: image
+workflow: krea2_t2i
+assistant: photo18
+base_model: FinePorn V6.1 (Krea 2 Turbo, 18+)
+params:
+  model: FinePorn_V6.1_FP8.safetensors
+  sampler: er_sde
+  scheduler: beta
+  img2img: true
+  finish_upscale: true
+  finish_scale: 1.5
+megapixels:
+  draft: 1.0
+  quality: 1.3
+eta:
+  draft: 12
+  quality: 35
+chips:
+- label: Студийный свет
+  hint: professional studio lighting, softbox key light, clean backdrop
+- label: Дневной свет
+  hint: natural daylight, soft window light
+- label: Вечер, тёплый свет
+  hint: warm golden evening light, cozy ambience
+- label: Снято на телефон
+  hint: amateur smartphone photo, candid, slight noise, on-camera flash look
+- label: Плёнка
+  hint: 35mm film photo, Kodak Portra colors, film grain
+- label: Глянец
+  hint: glossy magazine photoshoot, editorial fashion lighting, high-end retouch
+description: Специализированная 18+ модель FinePorn V6.1 — более «глянцевый» свет.
+  Сравните с основным пресетом.
+draft:
+  steps: 8
+quality:
+  steps: 10

@@ -120,6 +120,10 @@ class JobManager:
                 prompt = f"A new image {focus} <ref_image_0>: {prompt}"
             if p.get("nsfw") and (req.get("character") or images and p.get("ref_workflow")):
                 raise ValueError("В 18+ пресетах нельзя использовать персонажей и фото-референсы людей — только вымышленные персонажи из текста.")
+            if p.get("nsfw") and (p.get("params") or {}).get("img2img") and any(str(n).startswith("up_") for n in images):
+                # 18+ «по картинке» (переделка изображения) — только для картинок, созданных в студии: защита от дипфейков из чужих фото
+                raise ValueError("В 18+ фото-пресетах «по картинке» работает только с картинками из вашей галереи (созданными в студии). "
+                                 "Загруженные файлы можно использовать в обычных пресетах и для 18+ видео.")
             if p.get("nsfw"):
                 from ..assistant import provenance
                 for n in images:
@@ -156,6 +160,10 @@ class JobManager:
                 a, b = presets.ASPECTS.get(req["aspect"], (16, 9))
                 params["aspect"] = a / b
                 params["portrait"] = b > a
+            if req.get("ref_strength") is not None:
+                params["ref_strength"] = float(req["ref_strength"])
+                if p.get("nsfw"):  # при похожести <45% 18+ модели дорисовывают лишнее (тест 2026-11-26)
+                    params["ref_strength"] = max(0.45, params["ref_strength"])
             for k in ("steps", "cfg", "seconds", "camera", "smooth", "control", "strength", "target", "scale", "left", "right",
                       "top", "bottom", "src_w", "src_h", "mask", "fps", "duration", "multiplier", "set", "width", "height"):
                 if req.get(k) not in (None, ""):

@@ -38,13 +38,20 @@ def _face_detailer(g, img, model, clip, vae, pos, neg, seed, steps=8, denoise=0.
 
 
 # ---------------------------------------------------------------- FLUX.3 Klein
+def _finish(g, img, p, mode, seed):
+    """Доводка в «Качестве»: SeedVR2 восстанавливает мелкие детали (кожа, волосы, ткань) без перерисовки композиции."""
+    if mode == "quality" and p.get("finish_upscale"):
+        return _seedvr2(g, img, float(p.get("finish_scale", 1.5)), seed)
+    return img
+
+
 class _M:  # модель после цепочки LoRA (совместима с .out)
     def __init__(self, out):
         self.out = out
 
 
-def _klein_base(g, mode, loras=None):
-    unet = g.add("UNETLoader", "Модель Klein", unet_name=KLEIN[mode], weight_dtype="default")
+def _klein_base(g, mode, loras=None, unet_name=None):
+    unet = g.add("UNETLoader", "Модель Klein", unet_name=unet_name or KLEIN[mode], weight_dtype="default")
     clip = g.add("CLIPLoader", "Текстовый энкодер", clip_name=KLEIN_TE, type="flux3", device="default")
     vae = g.add("VAELoader", "VAE", vae_name=FLUX2_VAE)
     model, _ = _loras(g, unet.out, loras)  # LoRA пресета / обученного персонажа
@@ -54,14 +61,15 @@ def _klein_base(g, mode, loras=None):
 def klein_t2i(p, mode="quality"):
     g = Graph()
     seed, (w, h) = _seed(p), _size(p)
-    unet, clip, vae = _klein_base(g, mode, p.get("loras"))
+    unet, clip, vae = _klein_base(g, mode, p.get("loras"), p.get("unet"))
     pos = g.add("CLIPTextEncode", "Промпт", clip=clip.out, text=p["prompt"])
     neg = g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out)
     lat = g.add("EmptyFlux2LatentImage", "Размер", width=w, height=h, batch_size=int(p.get("batch", 1)))
     steps = int(p.get("steps") or (8 if mode == "draft" else 16))
     ks = g.add("KSampler", "Генерация", model=unet.out, positive=pos.out, negative=neg.out, latent_image=lat.out, seed=seed,
-               steps=steps, cfg=1.0, sampler_name=p.get("sampler", "euler"), scheduler="simple", denoise=1.0)
+               steps=steps, cfg=float(p.get("cfg") or 1.0), sampler_name=p.get("sampler", "euler"), scheduler="simple", denoise=1.0)
     img = g.add("VAEDecode", "Декодирование", samples=ks.out, vae=vae.out).out
+    img = _finish(g, img, p, mode, seed)
     if mode == "quality" and p.get("hires", False):  # у дистиллята Klein второй проход портит кожу (тест 2026-11-20)
         # Hires в пикселях: латентный апскейл у Flux-VAE даёт пересвет и «пережаренную» текстуру
         up = g.add("ImageScaleBy", "Hires: увеличение", image=img, upscale_method="lanczos", scale_by=float(p.get("hires_scale", 1.5)))
@@ -187,11 +195,23 @@ def krea2_t2i(p, mode="quality"):
     cfg = float(p.get("cfg") or 1.0)  # Turbo-модели — CFG 1 (негатив не нужен); не-Turbo (Real Dream) — CFG > 1 с настоящим негативом
     neg = (g.add("CLIPTextEncode", "Негатив", clip=clip.out, text=p.get("negative") or "blurry, lowres, deformed, bad anatomy, extra fingers, watermark")
            if cfg > 1 else g.add("ConditioningZeroOut", "Пустой негатив", conditioning=pos.out))
-    lat = g.add("EmptyLatentImage", "Размер", width=w, height=h, batch_size=int(p.get("batch", 1)))
     steps = int(p.get("steps") or 8)
+    denoise = 1.0
+    if p.get("img2img") and p.get("images"):
+        # «по картинке»: исходник — основа (поза, композиция, внешность); сила влияния 0..1 -> denoise 0.9..0.25
+        src = g.add("LoadImage", "Исходная картинка", image=p["images"][0])
+        fit = g.add("ImageScale", "Под размер кадра", image=src[0], upscale_method="lanczos", width=w, height=h, crop="center")
+        lat = g.add("VAEEncode", "Кодирование исходника", pixels=fit.out, vae=vae.out)
+        denoise = max(0.25, min(0.9, 1.0 - 0.75 * float(p.get("ref_strength", 0.6))))
+        steps = max(steps, round(steps / denoise))  # чтобы реальных шагов дорисовки было столько же, сколько при генерации с нуля
+    else:
+        lat = g.add("EmptyLatentImage", "Размер", width=w, height=h, batch_size=int(p.get("batch", 1)))
+    # при частичной перерисовке er_sde даёт белые «крапинки» на коже (тест 2026-11-26) — для «по картинке» euler/simple
+    sampler, scheduler = (("euler", "simple") if denoise < 1.0 else (p.get("sampler", "euler"), p.get("scheduler", "simple")))
     ks = g.add("KSampler", "Генерация", model=model, positive=pos.out, negative=neg.out, latent_image=lat.out, seed=seed,
-               steps=steps, cfg=cfg, sampler_name=p.get("sampler", "euler"), scheduler=p.get("scheduler", "simple"), denoise=1.0)
+               steps=steps, cfg=cfg, sampler_name=sampler, scheduler=scheduler, denoise=denoise)
     img = g.add("VAEDecode", "Декодирование", samples=ks.out, vae=vae.out).out
+    img = _finish(g, img, p, mode, seed)
     if mode == "quality" and p.get("hires", False):
         img = _hires_pixels(g, img, model, pos.out, neg.out, vae.out, seed, float(p.get("hires_scale", 1.5)), float(p.get("hires_denoise", 0.3)), 4, 1.0, "euler", "simple")
     if mode == "quality" and p.get("face_fix", False):
@@ -517,7 +537,34 @@ def train_lora(p, mode="quality"):
     return g.to_api()
 
 
+# ---------------------------------------------------------------- Официальный улучшатель промптов FLUX.3 (Qwen3.5 9B, дообучен BFL)
+KLEIN_UPSAMPLER = "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors"
+
+
+def klein_upsample(p, mode="quality"):
+    """Текст (+картинки для правки) -> промпт для Klein по официальной схеме шаблонов BFL. Результат — в выводе PreviewAny."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[2] / "prompt-templates"
+    edit = bool(p.get("images"))
+    system = (root / ("official_klein_edit.md" if edit else "official_klein.md")).read_text(encoding="utf-8")
+    g = Graph()
+    clip = g.add("CLIPLoader", "Улучшатель BFL", clip_name=KLEIN_UPSAMPLER, type="flux3", device="default")
+    text = (f"TARGET CANVAS: {p['aspect']}\n" if p.get("aspect") and not edit else "") + p["prompt"]
+    extra = {}
+    if edit:
+        imgs = [g.add("LoadImage", f"Картинка {i + 1}", image=n).out for i, n in enumerate(p["images"][:3])]
+        batch = g.add("BatchImagesNode", "Картинки", **{f"images.image{i}": im for i, im in enumerate(imgs)})
+        extra["image"] = batch.out
+    tg = g.add("TextGenerate", "Улучшить промпт", clip=clip.out, prompt=text, max_length=3584, sampling_mode="on",
+               **{"sampling_mode.temperature": 1.0, "sampling_mode.top_k": 1, "sampling_mode.top_p": 0.95, "sampling_mode.min_p": 0.0,
+                  "sampling_mode.repetition_penalty": 1.05, "sampling_mode.seed": int(p.get("seed") or 0), "sampling_mode.presence_penalty": 1.5},
+               thinking=False, use_default_template=True, mtp="off", system_prompt=system, **extra)
+    g.add("PreviewAny", "Промпт", source=tg[0])
+    return g.to_api()
+
+
 REGISTRY = {
+    "klein_upsample": klein_upsample,
     "train_lora": train_lora,
     "zimage_control": zimage_control,
     "detailer": detailer,

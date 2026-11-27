@@ -10,6 +10,7 @@ params:
   loras:
   - - krea2_darkbrush.safetensors
     - 1.0
+  img2img: true
 megapixels:
   draft: 1.0
   quality: 1.0
