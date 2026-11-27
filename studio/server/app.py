@@ -162,6 +162,9 @@ def generate(body: dict):
             body.setdefault("src_w", it["width"]); body.setdefault("src_h", it["height"])
     # 18+ с загруженной картинкой: оценка возраста описателем (один раз на файл, самая осторожная из двух моделей)
     p18 = presets.get(body.get("preset")) or {}
+    from ..assistant import safety as _safety
+    if not p18.get("nsfw") and _safety.is_explicit(f"{body.get('user_text') or ''} {body.get('prompt') or ''}"):
+        err(_safety.EXPLICIT_RU)
     if p18.get("nsfw"):
         from ..assistant import provenance
         if p18.get("media") == "video":
@@ -289,6 +292,20 @@ def assist(body: dict):
     if r.get("error"):
         err(r["error"])
     return r
+
+
+@app.post("/api/chat")
+def ai_chat(body: dict):
+    """Чат с ИИ: ответ по-русски и 1–3 предложенных пресета с готовым описанием задачи."""
+    from ..assistant import chat
+    msgs = [{"role": m["role"], "content": str(m["content"])[:2000]} for m in body.get("messages") or []
+            if m.get("role") in ("user", "assistant") and m.get("content")]
+    if not msgs or msgs[-1]["role"] != "user":
+        err("Напишите сообщение.")
+    try:
+        return chat.reply(msgs, [n for n in body.get("images") or [] if n], body.get("ref_kind"), bool(body.get("allow_nsfw")), presets.load_all())
+    except Exception:
+        err("Помощник не отвечает. Проверьте статус Ollama в разделе «Система».")
 
 
 @app.post("/api/assist/auto")

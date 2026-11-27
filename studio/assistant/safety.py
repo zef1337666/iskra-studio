@@ -26,6 +26,22 @@ REFUSAL_RU = ("Этот запрос нельзя выполнить: в раз�
               "Ничего, что связано с несовершеннолетними, студия не генерирует.")
 
 
+# Откровенный запрос в обычном (не 18+) пресете: в обычных пресетах нет проверки возраста на картинке и фильтра про несовершеннолетних,
+# поэтому такие запросы отправляем в раздел 18+, где эти проверки работают
+EXPLICIT_RE = re.compile(
+    r"\b(naked|nude|nudes|nudity|topless|bottomless|undress\w*|unclothed|striptease|stripping|nsfw|porn\w*|sex|sexual|erotic\w*|nipples?|"
+    r"genitals?|pussy|vagina|penis|cock|boobs?|tits|bare breasts?|no clothes|without clothes)\b|"
+    r"\b(гол(ая|ой|ую|ые|ый|ого|ышом)|обнаж\w*|раздень\w*|разде(ть|вай|тая|тую|тые|тый)\w*|без одежды|порн\w*|секс\w*|эрот\w*|"
+    r"сосок|соски|сиськ\w*|вагин\w*|наг(ая|ой|ую|ие|ишом)|топлес)\b", re.I)
+
+EXPLICIT_RU = ("Откровенный контент делается только в разделе 18+: там работают проверки возраста. "
+               "Выберите пресет из группы «18+» (или режим «Авто» при открытом разделе 18+).")
+
+
+def is_explicit(text: str):
+    return bool(text and EXPLICIT_RE.search(text))
+
+
 def check_request(text: str, nsfw: bool):
     """Возвращает текст отказа или None. Для 18+ — строгая проверка, для обычных пресетов проверку делает модель."""
     if nsfw and text and _minor_re.search(text):

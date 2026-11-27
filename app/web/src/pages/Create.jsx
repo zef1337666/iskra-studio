@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Wand2, Languages, Dices, Layers, Loader2, X, Zap, Gem, Plus, Trash2, Lock, Unlock, SlidersHorizontal, Undo2,
-  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown, LayoutGrid } from "lucide-react";
+  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown, LayoutGrid, MessageCircle } from "lucide-react";
 import { useStore } from "../store";
 import { api, thumbUrl, fileUrl } from "../api";
 import PresetPicker from "../components/PresetPicker";
 import { FOCUS } from "../components/RefDrop";
 import Lightbox from "../components/Lightbox";
+import AIChat from "../components/AIChat";
 import { ACTIONS, toggleFav } from "../components/actions";
 import { Tip, fmtSec } from "../components/ui";
 
@@ -107,6 +108,7 @@ export default function Create() {
   const [chars, setChars] = useState([]);
   const [attest, setAttest] = useState(false);
   const [picker, setPicker] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [aiNote, setAiNote] = useState(null); // {name, reason, loras, suggest, prompt} — что выбрал ИИ
   const autoMode = draft.auto !== false; // «Авто»: модель и LoRA выбирает ИИ (по умолчанию включено)
   const [history, setHistory] = useState([]);
@@ -191,12 +193,13 @@ export default function Create() {
 
   // ИИ: по описанию своими словами (и прикреплённым фото) выбирает модель, формат и LoRA и пишет промпт по официальной инструкции модели.
   // keep — модель выбрана вручную: остаёмся на ней, а если ИИ считает, что нужна другая, он это подскажет; force — перейти на подсказанную
-  const runAuto = async ({ keep = !autoMode, force } = {}) => {
+  const runAuto = async ({ keep = !autoMode, force, text } = {}) => {
     const imgs = refs.map((x) => x.name).filter(Boolean);
-    const r = await api.post("/api/assist/auto", { text: draft.text, images: imgs, ref_kind: imgs.some((n) => /\.(mp4|webm|mov)$/i.test(n)) ? "video" : "image",
+    const src = text ?? draft.text;
+    const r = await api.post("/api/assist/auto", { text: src, images: imgs, ref_kind: imgs.some((n) => /\.(mp4|webm|mov)$/i.test(n)) ? "video" : "image",
       allow_nsfw: !safeMode, current: p.id, keep, force });
     if (r.preset !== p.id) pick(r.preset);
-    setOriginal(original ?? draft.text); setDraft({ text: r.prompt, ...(r.aspect && !refs.length ? { aspect: r.aspect } : {}) }); setNegative(r.negative || "");
+    setOriginal(text ?? original ?? draft.text); setDraft({ text: r.prompt, ...(r.aspect && !refs.length ? { aspect: r.aspect } : {}) }); setNegative(r.negative || "");
     setLoras((r.loras || []).map((l) => ({ name: l.name, weight: l.weight })));
     setAiNote({ name: r.preset_name, reason: r.reason, loras: r.loras || [], suggest: r.suggest, prompt: r.prompt });
     return { r, pr: presets.find((x) => x.id === r.preset) || p };
@@ -217,18 +220,26 @@ export default function Create() {
     loras: loras.filter((l) => l.name), ...((pp.media || "image") === "video" ? { seconds, camera, smooth } : {}),
     ...(pp.requires === "video" ? { videos: refs.map((r) => r.name), images: [] } : {}),
   });
+  // ИИ пишет промпт (и подбирает LoRA) для выбранной или подсказанной модели — и сразу генерация
+  const autoCreate = async (text, force) => {
+    setBusy("create"); setVariants(null);
+    try {
+      const { r, pr } = await runAuto({ keep: false, force, text });
+      await api.post("/api/generate", { ...body(r.prompt, pr), aspect: refs.length ? aspectFor(pr) : (r.aspect || aspectFor(pr)), negative: r.negative || "", user_text: text,
+        loras: (r.loras || []).map((l) => ({ name: l.name, weight: l.weight })) });
+    } catch (e) { toast(e.message, "error"); }
+    setBusy(null);
+  };
+  // чат с ИИ: «Выбрать» — пресет и описание в поле ввода; «Создать» — сразу генерация
+  const chatPick = (pid, idea) => { pick(pid); setDraft({ auto: false, text: idea }); setLoras([]); setAiNote(null); setOriginal(null); ta.current?.focus(); };
+  const chatCreate = (pid, idea) => {
+    const pp = presets.find((x) => x.id === pid);
+    if (pp?.requires && !refs.length) { toast("Для этого пресета нужна картинка — добавьте её кнопкой «+» внизу", "info"); chatPick(pid, idea); return; }
+    setDraft({ auto: false }); autoCreate(idea, pid);
+  };
   const create = async (textOver, presetOver) => {
     // «Авто»: если ИИ ещё не обработал этот текст — сначала он выбирает модель, LoRA и пишет промпт, потом сразу генерация
-    if (autoMode && !presetOver && textOver === undefined && draft.text.trim() && aiNote?.prompt !== draft.text) {
-      setBusy("create"); setVariants(null);
-      try {
-        const userText = original ?? draft.text;
-        const { r, pr } = await runAuto({ keep: false });
-        await api.post("/api/generate", { ...body(r.prompt, pr), aspect: refs.length ? aspectFor(pr) : (r.aspect || aspectFor(pr)), negative: r.negative || "", user_text: userText,
-          loras: (r.loras || []).map((l) => ({ name: l.name, weight: l.weight })) });
-      } catch (e) { toast(e.message, "error"); }
-      setBusy(null); return;
-    }
+    if (autoMode && !presetOver && textOver === undefined && draft.text.trim() && aiNote?.prompt !== draft.text) return autoCreate(draft.text);
     const text = (textOver ?? draft.text).trim();
     const preset = presetOver ? presets.find((x) => x.id === presetOver) : p;
     if (!preset) return;
@@ -350,14 +361,6 @@ export default function Create() {
                 <label className="flex gap-2 items-start text-xs cursor-pointer max-w-md self-center"><input type="checkbox" checked={attest} onChange={async (e) => { setAttest(e.target.checked); if (e.target.checked) useStore.setState({ settings: await api.put("/api/settings", { uploads_attested: true }) }); }} className="mt-0.5" />
                   <span>Подтверждаю: на картинке вымышленный взрослый персонаж, созданный ИИ (спрошу один раз)</span></label>}
             </div>}
-            {/* готовые движения для оживления картинки — в один клик; свой вариант можно написать в поле ниже */}
-            {p._motions?.length > 0 && <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
-              <span className="label shrink-0 mr-1">Движение</span>
-              {p._motions.map((m) => <Tip key={m.label} text={refs.length || !needsRef ? "Создать видео с этим движением" : "Сначала добавьте картинку (+ или перетащите)"}>
-                <button className="chip !h-7 !text-xs shrink-0 whitespace-nowrap" disabled={busy === "create"} style={p.nsfw ? { borderColor: "var(--color-pink)" } : {}}
-                  onClick={() => { if (needsRef && !refs.length) { toast("Сначала добавьте картинку, которую нужно оживить (+ или перетащите)", "info"); return; } setDraft({ text: m.prompt, auto: false }); setOriginal(null); setAiNote(null); create(m.prompt); }}>{m.label}</button></Tip>)}
-              <span className="dim text-xs shrink-0 ml-1">или опишите своё ниже</span>
-            </div>}
             {/* ввод */}
             <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 px-1">
               <Tip text={needsRef ? "Добавить исходную картинку (или Ctrl+V / перетащить)" : "Картинка-референс (или Ctrl+V / перетащить)"}>
@@ -376,6 +379,7 @@ export default function Create() {
                     <button key={m} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-[var(--panel-2)]" onClick={() => assist(m)}><I size={15} />{l}</button>)}
                 </div>}
               </div>
+              <Tip text="Чат с ИИ: расскажите, что нужно — он предложит подходящие пресеты"><button className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center hover:bg-[var(--panel-2)] ${chatOpen ? "text-[var(--color-accent-hi)]" : "muted"}`} onClick={() => setChatOpen(!chatOpen)} aria-label="Чат с ИИ"><MessageCircle size={17} /></button></Tip>
               <Tip text="Настройки: фотостиль, видео, seed, LoRA…"><button className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center hover:bg-[var(--panel-2)] ${panel ? "text-[var(--color-accent-hi)]" : "muted"}`} onClick={() => setPanel(!panel)} aria-label="Настройки"><SlidersHorizontal size={17} /></button></Tip>
               <button className="btn-primary !h-10 !rounded-xl !px-5 shrink-0 ml-auto sm:ml-0" onClick={() => create()} disabled={busy === "create"}>{busy === "create" ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}<span className="hidden sm:inline">Создать</span></button>
             </div>
@@ -398,6 +402,7 @@ export default function Create() {
         </div>
       </div>
       <input ref={fileIn} type="file" hidden multiple={maxRefs > 1} accept={p.requires === "video" ? "video/*" : "image/*"} onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
+      {chatOpen && <AIChat onClose={() => setChatOpen(false)} refs={refs} allowNsfw={!safeMode} onPick={chatPick} onCreate={chatCreate} busyCreate={busy === "create"} />}
       {lb !== null && <Lightbox items={feed} index={lb} onIndex={setLb} onClose={() => setLb(null)} />}
     </div>
   );
