@@ -237,8 +237,9 @@ async def upload(file: UploadFile = File(...)):
         w = h = None
     from ..assistant import provenance
     ai = provenance.detect(INPUT / name)
-    provenance.remember(name, {"ai": ai})
-    return {"name": name, "url": f"/files/input/{name}", "width": w, "height": h, "ai": ai}
+    bare = not ai and provenance.bare(INPUT / name)
+    provenance.remember(name, {"ai": ai, "bare": bare})
+    return {"name": name, "url": f"/files/input/{name}", "width": w, "height": h, "ai": ai, "bare": bare}
 
 
 # ---------------------------------------------------------------- помощник и описатель

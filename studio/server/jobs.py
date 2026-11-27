@@ -125,9 +125,14 @@ class JobManager:
                 # обычные фото (без метки) и всё, что из них получено, — нет (защита от дипфейков)
                 bad = [n for n in images if not image_is_synthetic(n)]
                 if bad:
+                    from ..assistant import provenance
+                    if any(provenance.info(n).get("bare") for n in bad):
+                        raise ValueError("В файле нет никаких метаданных — метку «создано ИИ» стёрли при пересылке (Telegram, WhatsApp), "
+                                         "сохранении из превью или скриншоте. Скачайте оригинал прямо в сервисе кнопкой «Скачать» "
+                                         "(в Telegram — отправляйте «как файл») или возьмите генерацию из галереи студии.")
                     raise ValueError("Эта картинка не распознана как ИИ-генерация (нет метки «создано ИИ» в файле), поэтому для 18+ переноса "
-                                     "и «по картинке» не подходит. Подходят генерации студии и файлы из ИИ-сервисов, которые ставят метку "
-                                     "(Google, OpenAI, Adobe, Midjourney и др.).")
+                                     "и «по картинке» не подходит. Подходят генерации студии и оригиналы из ИИ-сервисов, которые ставят метку "
+                                     "(Google, OpenAI, Grok, Meta, Adobe, Midjourney, Seedream и др.).")
             if p.get("nsfw"):
                 from ..assistant import provenance
                 for n in images:

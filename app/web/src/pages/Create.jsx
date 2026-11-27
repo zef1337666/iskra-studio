@@ -275,7 +275,10 @@ export default function Create() {
                 <Tip text="Насколько результат держится за картинку: меньше — свободнее, больше — ближе к исходнику"><span>Похожесть</span></Tip>
                 <input type="range" min="0.1" max="0.95" step="0.05" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="flex-1" />
                 <span className="w-9 text-right">{Math.round(strength * 100)}%</span></div>}
-              {p.nsfw && refs.some((r) => r.name?.startsWith("up_") && !r.ai) && !settings?.uploads_attested &&
+              {p.nsfw && (p.workflow === "krea2_identity" || p.params?.img2img) && refs.some((r) => r.name?.startsWith("up_") && !r.ai) &&
+                <span className="text-xs self-center max-w-md" style={{ color: "var(--color-pink)" }}>
+                  {refs.some((r) => r.bare) ? "В файле нет метаданных (переслан через мессенджер или это скриншот) — метка ИИ стёрта. Скачайте оригинал кнопкой «Скачать» в сервисе." : "Нет метки «создано ИИ» — для переноса не подойдёт. Возьмите оригинал из сервиса или генерацию из галереи."}</span>}
+              {p.nsfw && !(p.workflow === "krea2_identity" || p.params?.img2img) && refs.some((r) => r.name?.startsWith("up_") && !r.ai) && !settings?.uploads_attested &&
                 <label className="flex gap-2 items-start text-xs cursor-pointer max-w-md self-center"><input type="checkbox" checked={attest} onChange={async (e) => { setAttest(e.target.checked); if (e.target.checked) useStore.setState({ settings: await api.put("/api/settings", { uploads_attested: true }) }); }} className="mt-0.5" />
                   <span>Подтверждаю: на картинке вымышленный взрослый персонаж, созданный ИИ (спрошу один раз)</span></label>}
             </div>}

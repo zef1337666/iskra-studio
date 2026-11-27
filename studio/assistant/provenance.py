@@ -16,7 +16,12 @@ MARKERS = [
     (rb"\"class_type\"|ComfyUI", "ComfyUI"),
     (rb"Stable Diffusion|Steps: \d+, Sampler", "Stable Diffusion"),
     (rb"Leonardo\.Ai|Ideogram|FLUX|Black Forest Labs|Krea", "ИИ-генератор"),
+    (rb"Grok|xAI|Meta AI|Imagined with AI|Microsoft Designer|Bing Image Creator|Image Creator from Microsoft", "ИИ-генератор"),
+    (rb"NovelAI|invokeai|Fooocus|sui_image_params|Civitai|SeaArt|Tensor\.Art|NightCafe|Playground AI", "ИИ-генератор"),
+    (rb"Seedream|Dreamina|Jimeng|Doubao|Kling AI|Hailuo|Recraft|Tongyi|Wanxiang|Hunyuan|Qwen-Image", "ИИ-генератор"),
 ]
+# Любые метаданные (EXIF, XMP, IPTC, C2PA, PNG-текст). Их отсутствие — признак пересылки через мессенджер/скриншота.
+META = rb"Exif\x00\x00|http://ns\.adobe\.com/xap|jumb|c2pa|Photoshop 3\.0|tEXt|iTXt|zTXt|eXIf"
 REG = DATA / "uploads.json"
 
 
@@ -27,6 +32,12 @@ def detect(path):
         if re.search(pat, data, re.I) or re.search(pat, tail, re.I):
             return label
     return None
+
+
+def bare(path):
+    """True — в файле нет никаких метаданных (метку «создано ИИ» стёрли при пересылке/скриншоте)."""
+    b = pathlib.Path(path).read_bytes()
+    return not (re.search(META, b[:4 * 2**20]) or re.search(META, b[-2**20:]))
 
 
 def _reg():
