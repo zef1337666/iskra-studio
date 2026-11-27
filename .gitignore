@@ -26,3 +26,5 @@ backups/
 tools/ai-toolkit/
 data/training/
 data/training_sets/
+
+tools/ollama/
