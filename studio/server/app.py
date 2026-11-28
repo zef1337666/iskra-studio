@@ -794,8 +794,18 @@ def f_cover(rel: str):
     return FileResponse(_safe(presets.COVERS_DIR, rel))
 
 
+class _WebFiles(StaticFiles):
+    """index.html — без кэша: иначе окно «Искры» (WebView2 с постоянным кэшем) после обновления показывает старый интерфейс.
+    Файлы в assets/ с хешем в имени кэшируются надолго."""
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        asset = path.replace("\\", "/").startswith("assets/")  # на Windows путь приходит с обратной косой
+        r.headers["Cache-Control"] = "public, max-age=31536000, immutable" if asset else "no-cache, must-revalidate"
+        return r
+
+
 if WEB.exists():
-    app.mount("/", StaticFiles(directory=str(WEB), html=True), name="web")
+    app.mount("/", _WebFiles(directory=str(WEB), html=True), name="web")
 
 
 def bind_host():

@@ -435,7 +435,7 @@ def h3_video(p, mode="quality"):
     length = lo if lo >= 5 and x - lo <= 8 else lo + 17
     text = p["prompt"] + (", " + CAMERA_RU[p["camera"]] if p.get("camera") in CAMERA_RU else "")
     first = g.add("LoadImage", "Первый кадр", image=imgs[0]).out if imgs else None
-    steps = int(p.get("steps") or (6 if mode == "draft" else 20))
+    steps = int(p.get("steps") or (8 if mode == "draft" else 20))  # ускоряющая LoRA H3 рассчитана на 8 шагов
     sch = g.add("BasicScheduler", "Шаги", model=unet, scheduler="simple", steps=steps, denoise=1.0)
     smp = g.add("KSamplerSelect", "Сэмплер", sampler_name="res_multistep")
     frames = audio = None

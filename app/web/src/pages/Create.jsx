@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Wand2, Languages, Dices, Layers, Loader2, X, Zap, Gem, Plus, Trash2, Lock, Unlock, SlidersHorizontal, Undo2,
-  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown, LayoutGrid, MessageCircle } from "lucide-react";
+  Maximize2, Heart, Download, Film, Box, Pencil, Copy, ImagePlus, ChevronDown, LayoutGrid, MessageCircle, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useStore } from "../store";
 import { api, thumbUrl, fileUrl } from "../api";
 import PresetPicker from "../components/PresetPicker";
@@ -60,10 +60,13 @@ function JobCard({ job, pos }) {
 }
 
 // ---------------------------------------------------------------- карточка результата с действиями прямо на картинке
-function ResultCard({ it, onOpen, onEdit, onAnimate }) {
+function ResultCard({ it, onOpen, onEdit, onAnimate, onRemove }) {
   const [fav, setFav] = useState(it.favorite);
+  const [rating, setRating] = useState(it.rating || 0);
+  // 👍 = 5 звёзд, 👎 = 1 звезда (повторное нажатие снимает оценку) — по оценкам ИИ учится подбирать модели и LoRA
+  const rate = async (e, n) => { e.stopPropagation(); const r = await api.patch(`/api/items/${it.id}`, { rating: rating === n ? 0 : n }); setRating(r.rating || 0); };
   const act = (id) => (e) => { e.stopPropagation(); ACTIONS.find((a) => a.id === id).run(it); };
-  const Btn = ({ icon: I, label, onClick }) => <Tip text={label}><button onClick={onClick} className="w-9 h-9 rounded-xl bg-black/55 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur" aria-label={label}><I size={16} /></button></Tip>;
+  const Btn = ({ icon: I, label, onClick, active }) => <Tip text={label}><button onClick={onClick} className={`w-9 h-9 rounded-xl hover:bg-black/80 flex items-center justify-center backdrop-blur ${active ? "bg-white text-black" : "bg-black/55 text-white"}`} aria-label={label}><I size={16} /></button></Tip>;
   const ratio = it.width && it.height ? `${it.width} / ${it.height}` : "1 / 1";
   return (
     <div className="group relative rounded-2xl overflow-hidden panel animate-fade-in cursor-zoom-in" style={{ aspectRatio: ratio }} onClick={onOpen}
@@ -74,9 +77,16 @@ function ResultCard({ it, onOpen, onEdit, onAnimate }) {
       <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition bg-gradient-to-t from-black/60 via-transparent to-black/30" />
       <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition">
         <Btn icon={Heart} label="В избранное" onClick={async (e) => { e.stopPropagation(); const r = await toggleFav({ ...it, favorite: fav }); setFav(r.favorite); }} />
+        <Btn icon={ThumbsUp} label="Удачно — ИИ запомнит" onClick={(e) => rate(e, 5)} active={rating >= 4} />
+        <Btn icon={ThumbsDown} label="Неудачно — ИИ учтёт" onClick={(e) => rate(e, 1)} active={rating > 0 && rating <= 2} />
         <Btn icon={Download} label="Скачать" onClick={(e) => { e.stopPropagation(); const a = document.createElement("a"); a.href = fileUrl(it); a.download = ""; a.click(); }} />
+        <Btn icon={Trash2} label="В корзину (восстановить можно в «Галерее» → «Корзина»)" onClick={async (e) => { e.stopPropagation(); await api.patch(`/api/items/${it.id}`, { deleted: 1 }); onRemove?.(it.id); }} />
       </div>
-      {fav && <Heart size={18} fill="#ff5fa2" color="#ff5fa2" className="absolute top-3 left-3 drop-shadow" />}
+      <div className="absolute top-3 left-3 flex gap-1.5 drop-shadow">
+        {fav && <Heart size={18} fill="#ff5fa2" color="#ff5fa2" />}
+        {rating >= 4 && <ThumbsUp size={17} fill="#4ade80" color="#4ade80" />}
+        {rating > 0 && rating <= 2 && <ThumbsDown size={17} fill="#ff6b6b" color="#ff6b6b" />}
+      </div>
       <div className="absolute inset-x-3 bottom-3 flex gap-1.5 flex-wrap opacity-0 group-hover:opacity-100 transition">
         {it.kind === "image" && <>
           <Btn icon={Copy} label="Ещё варианты" onClick={act("more")} />
@@ -119,6 +129,7 @@ export default function Create() {
   const [picker, setPicker] = useState(false);
   const [pf, setPf] = useState(null); // фильтр списка моделей: all / text / img
   const [chatOpen, setChatOpen] = useState(false);
+  const [removed, setRemoved] = useState(() => new Set()); // убранные в корзину с ленты
   const [aiNote, setAiNote] = useState(null); // {name, reason, loras, suggest, prompt} — что выбрал ИИ
   const autoMode = draft.auto !== false; // «Авто»: модель и LoRA выбирает ИИ (по умолчанию включено)
   const [history, setHistory] = useState([]);
@@ -155,7 +166,7 @@ export default function Create() {
   const needsRef = ["image", "images2", "video"].includes(p?.requires);
   const active = queue.map((q) => jobs[q.id] || q);
   const lastIds = new Set(lastItems.map((x) => x.id));
-  const feed = [...lastItems, ...history.filter((x) => !lastIds.has(x.id))].filter((it) => !(safeMode && it.nsfw));
+  const feed = [...lastItems, ...history.filter((x) => !lastIds.has(x.id))].filter((it) => !(safeMode && it.nsfw) && !removed.has(it.id) && !it.deleted);
   const showAspect = (media === "image" || media === "video") && p?.workflow !== "klein_edit";
   // Формат «как у исходника»: при генерации из картинки размер повторяет её пропорции (видео — ближайший стандартный формат)
   const srcRatio = (pp = p) => {
@@ -303,7 +314,7 @@ export default function Create() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 items-start max-w-[2200px] mx-auto">
             {active.map((j, i) => <JobCard key={j.id} job={j} pos={j.state === "queued" ? i + 1 : null} />)}
-            {feed.map((it, i) => <ResultCard key={it.id} it={it} onOpen={() => setLb(i)} onEdit={(x) => toCreateWith(x, "edit")} onAnimate={(x) => toCreateWith(x, x.nsfw ? "video18" : "video")} />)}
+            {feed.map((it, i) => <ResultCard key={it.id} it={it} onOpen={() => setLb(i)} onEdit={(x) => toCreateWith(x, "edit")} onAnimate={(x) => toCreateWith(x, x.nsfw ? "video18" : "video")} onRemove={(id) => setRemoved((r) => new Set([...r, id]))} />)}
           </div>
         )}
       </div>
@@ -434,6 +445,8 @@ export default function Create() {
                 <select className="field !w-auto !py-1 !text-xs" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
                   {[3, 5, 8, 10, 15, 20, 30].map((v) => <option key={v} value={v}>{v} с</option>)}</select></Tip>}
               {media === "video" && camera && <span className="muted">{CAMERA.find((c) => c[0] === camera)?.[1]}</span>}
+              {media === "video" && draft.mode === "draft" && <Tip text="Черновик видео — меньше разрешение и шагов: быстро проверить движение. Финальный ролик делайте в «Качестве» — он заметно чище, особенно для 18+ и длинных видео">
+                <span className="text-xs" style={{ color: "var(--color-pink)" }}>черновик — для пробы, финал в «Качестве»</span></Tip>}
               <span className="flex-1" />
               <span className="dim hidden md:inline">{p.base_model} · Ctrl+Enter</span>
             </div>
