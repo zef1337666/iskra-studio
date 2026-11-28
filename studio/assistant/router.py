@@ -3,7 +3,7 @@
 import json, struct
 import yaml
 from ..config import ROOT
-from . import prompter
+from . import learning, prompter
 
 SKIP = {"inpaint", "outpaint"}  # нужна ручная подготовка в интерфейсе (маска, поля)
 LORAS_DIR = ROOT / "models" / "loras"
@@ -98,6 +98,7 @@ def choose(text, cands, n_images=0, nsfw=False, ref_kind=None):
         lines.append(f"- {p['id']}: {p.get('name')} / group {p.get('group')}{tags} — {(p.get('description') or '').strip()}")
     lora_txt = ("\nLoRA descriptions:\n" + "\n".join(f"- {f}: {cat[f]['when']}" for f in sorted(used))) if used else ""
     att = f"{n_images} {'video' if ref_kind == 'video' else 'image'}(s) attached" if n_images else "no attachments"
+    learned, n_learned = learning.context(text)  # похожие прошлые случаи: что пользователю понравилось / что он исправлял
     schema = {"type": "object", "properties": {
         "preset": {"type": "string", "enum": [p["id"] for p in cands]},
         "aspect": {"type": "string", "enum": list(ASPECTS)},
@@ -106,14 +107,14 @@ def choose(text, cands, n_images=0, nsfw=False, ref_kind=None):
     payload = {"model": prompter.pick_model(nsfw), "stream": False, "think": False, "keep_alive": 0, "format": schema,
                "options": {"temperature": 0}, "messages": [
                    {"role": "system", "content": SYSTEM},
-                   {"role": "user", "content": f"Request: {text}\nAttachments: {att}\nPresets:\n" + "\n".join(lines) + lora_txt}]}
+                   {"role": "user", "content": f"Request: {text}\nAttachments: {att}\nPresets:\n" + "\n".join(lines) + lora_txt + learned}]}
     out = json.loads(prompter._ollama("/api/chat", payload, timeout=120)["message"]["content"])
     ids = {p["id"]: p for p in cands}
     pid = out.get("preset") if out.get("preset") in ids else cands[0]["id"]
     ok = set(preset_loras(ids[pid], cat))
     loras = [f for f in dict.fromkeys(out.get("loras") or []) if f in ok]
     return {"preset": pid, "aspect": out.get("aspect") if out.get("aspect") in ASPECTS else "2:3",
-            "reason": (out.get("reason_ru") or "").strip(), "loras": loras}
+            "reason": (out.get("reason_ru") or "").strip(), "loras": loras, "learned": n_learned}
 
 
 def lora_params(p, files):

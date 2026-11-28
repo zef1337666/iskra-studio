@@ -1,6 +1,6 @@
 """Чат с ИИ внутри студии: пользователь пишет своими словами, что ему нужно, ИИ отвечает по-русски и предлагает подходящие пресеты."""
 import json
-from . import prompter, router, safety
+from . import learning, prompter, router, safety
 
 SYSTEM = """Ты — дружелюбный помощник локальной ИИ-студии «Искра» (фото, видео, правка картинок, 3D). Пользователь может быть новичком.
 Отвечай по-русски, коротко и по делу: 1–3 предложения в поле reply, без списков и без технических терминов.
@@ -28,6 +28,8 @@ def reply(messages, images, ref_kind, allow_nsfw, all_presets):
         lines.append(f"- {p['id']}: «{p.get('name')}» ({p.get('group')}){tags} — {(p.get('description') or '').strip()}")
     system = SYSTEM + "\n\nПресеты:\n" + "\n".join(lines)
     system += f"\n\nСейчас прикреплено: {len(images)} {'видео' if ref_kind == 'video' else 'картинок'}." if images else "\n\nСейчас ничего не прикреплено."
+    learned, _ = learning.context(user_text)  # похожие прошлые случаи: что понравилось и что пользователь исправлял
+    system += learned
     if nsfw:
         system += ("\nРаздел 18+ открыт: откровенный контент с вымышленными взрослыми разрешён. Пресеты [18+] предлагай только на откровенные "
                    "просьбы. Ничего, связанного с несовершеннолетними.")

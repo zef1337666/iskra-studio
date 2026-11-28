@@ -216,7 +216,7 @@ export default function Create() {
     if (r.preset !== p.id) pick(r.preset);
     setOriginal(text ?? original ?? draft.text); setDraft({ text: r.prompt, ...(r.aspect && !refs.length ? { aspect: r.aspect } : {}) }); setNegative(r.negative || "");
     setLoras((r.loras || []).map((l) => ({ name: l.name, weight: l.weight })));
-    setAiNote({ name: r.preset_name, reason: r.reason, loras: r.loras || [], suggest: r.suggest, prompt: r.prompt });
+    setAiNote({ name: r.preset_name, reason: r.reason, loras: r.loras || [], suggest: r.suggest, prompt: r.prompt, learned: r.learned || 0 });
     return { r, pr: presets.find((x) => x.id === r.preset) || p };
   };
   // кнопка «ИИ»: всегда сама выбирает оптимальную модель (фото, видео, правка…) и включает «Авто»;
@@ -322,7 +322,7 @@ export default function Create() {
             {refs.length > 0 && !needsRef && <div><div className="label mb-1.5">Что взять с картинки</div><div className="flex gap-1.5 flex-wrap">{FOCUS.map((f) => <button key={f.id} className={`chip !h-7 !text-xs ${focus === f.id ? "on" : ""}`} onClick={() => setFocus(f.id)}>{f.label}</button>)}</div>
               {false && <div className="flex items-center gap-3 mt-2 muted"><span className="w-28">Сила влияния</span><input type="range" min="0" max="1" step="0.05" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="flex-1" /><span className="w-10 text-right">{Math.round(strength * 100)}%</span></div>}</div>}
             {media === "video" && <div className="space-y-2">
-              <div className="flex items-center gap-3"><span className="label w-28">Длительность</span><input type="range" min="3" max="8" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="flex-1" /><span className="w-10 text-right">{seconds} с</span></div>
+              <div className="flex items-center gap-3"><span className="label w-28">Длительность</span><input type="range" min="3" max="30" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="flex-1" /><span className="w-10 text-right">{seconds} с</span></div>
               <div className="flex gap-1.5 flex-wrap"><span className="label self-center w-28">Камера</span>{CAMERA.map(([v, l]) => <button key={v} className={`chip !h-7 !text-xs ${camera === v ? "on" : ""}`} onClick={() => setCamera(camera === v ? null : v)}>{l}</button>)}</div>
               {p.workflow === "wan22_video" && <label className="flex items-center gap-2 muted cursor-pointer"><input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} />Сделать плавнее (удвоить кадры)</label>}
             </div>}
@@ -360,7 +360,7 @@ export default function Create() {
                 {pickerGroups.map((g) => <div key={g} className="mb-3 last:mb-0">
                   <div className="label mb-1.5 px-1" style={g === "18+" ? { color: "var(--color-pink)" } : {}}>{g}</div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
-                    {pickerList.filter((x) => x.group === g).map((x) => { const off = refs.length > 0 && !usesImg(x); return <button key={x.id} onClick={() => { pick(x.id); setDraft({ auto: false }); setLoras([]); setPicker(false); setAiNote(null); }}
+                    {pickerList.filter((x) => x.group === g).map((x) => { const off = refs.length > 0 && !usesImg(x); return <button key={x.id} onClick={() => { if (aiNote?.prompt === draft.text && x.id !== p.id) api.post("/api/learn/correction", { text: original ?? draft.text, ai: p.id, wanted: x.id }).catch(() => {}); pick(x.id); setDraft({ auto: false }); setLoras([]); setPicker(false); setAiNote(null); }}
                       className={`text-left rounded-xl px-3 py-2 transition hover:bg-[var(--panel-2)] ${off ? "opacity-50" : ""}`}
                       style={!autoMode && x.id === p.id ? { background: "var(--panel-2)", boxShadow: `inset 0 0 0 1px ${x.nsfw ? "var(--color-pink)" : "var(--color-accent)"}` } : {}}>
                       <div className="text-sm font-medium">{x.name}</div>
@@ -373,11 +373,11 @@ export default function Create() {
               <Wand2 size={12} className="shrink-0" />
               {aiNote.prev
                 ? <><span className="truncate">ИИ выбрал «{aiNote.name}» вместо «{aiNote.prev.name}»{aiNote.reason ? ` — ${aiNote.reason}` : ""}</span>
-                    <button className="chip !h-6 !text-xs shrink-0" onClick={() => aiAssist({ force: aiNote.prev.id, text: original ?? draft.text })} disabled={!!busy}>Вернуть «{aiNote.prev.name}»</button></>
+                    <button className="chip !h-6 !text-xs shrink-0" onClick={() => { api.post("/api/learn/correction", { text: original ?? draft.text, ai: p.id, wanted: aiNote.prev.id }).catch(() => {}); aiAssist({ force: aiNote.prev.id, text: original ?? draft.text }); }} disabled={!!busy}>Вернуть «{aiNote.prev.name}»</button></>
                 : aiNote.suggest
                 ? <><span className="truncate">Промпт написан для «{aiNote.name}», но для этой задачи лучше подойдёт «{aiNote.suggest.name}»{aiNote.suggest.reason ? ` — ${aiNote.suggest.reason}` : ""}</span>
                     <button className="chip !h-6 !text-xs shrink-0" onClick={() => aiAssist({ keep: false, force: aiNote.suggest.preset })} disabled={!!busy}>Переключить</button></>
-                : <span className="truncate">ИИ: «{aiNote.name}»{aiNote.loras?.length ? ` + LoRA ${aiNote.loras.map((l) => l.label).join(", ")}` : ""}{aiNote.reason ? ` — ${aiNote.reason}` : ""}</span>}
+                : <span className="truncate">ИИ: «{aiNote.name}»{aiNote.loras?.length ? ` + LoRA ${aiNote.loras.map((l) => l.label).join(", ")}` : ""}{aiNote.reason ? ` — ${aiNote.reason}` : ""}{aiNote.learned ? ` · учтено ваших оценок: ${aiNote.learned}` : ""}</span>}
               <button className="dim hover:text-[var(--text)] ml-auto shrink-0" onClick={() => setAiNote(null)} aria-label="Скрыть"><X size={12} /></button></div>}
             {/* референсы */}
             {refs.length > 0 && <div className="flex gap-2 px-2 pb-2">{refs.map((r, i) => (
@@ -430,7 +430,10 @@ export default function Create() {
               {showAspect && <Tip text={draft.aspect === "src" ? `Пропорции как у исходной картинки (${srcRatio()?.replace(":", "×") || "—"})` : "Формат кадра"}><select className="field !w-auto !py-1 !text-xs" value={draft.aspect} onChange={(e) => setDraft({ aspect: e.target.value })}>
                 {refs.length > 0 && <option value="src">Как у исходника</option>}{ASPECTS.map((a) => <option key={a}>{a}</option>)}</select></Tip>}
               {media === "image" && <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--line)" }}>{[1, 2, 3, 4].map((n) => <button key={n} onClick={() => setDraft({ count: n })} className={`w-7 h-7 ${draft.count === n ? "bg-[var(--color-accent)] text-white" : "muted hover:bg-[var(--panel-2)]"}`}>{n}</button>)}</div>}
-              {media === "video" && <span className="muted">{seconds} с{camera ? ` · ${CAMERA.find((c) => c[0] === camera)?.[1]}` : ""}</span>}
+              {media === "video" && <Tip text="Длительность видео. Больше 5–8 секунд — видео собирается из нескольких частей (продолжение по последнему кадру), генерация дольше пропорционально">
+                <select className="field !w-auto !py-1 !text-xs" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
+                  {[3, 5, 8, 10, 15, 20, 30].map((v) => <option key={v} value={v}>{v} с</option>)}</select></Tip>}
+              {media === "video" && camera && <span className="muted">{CAMERA.find((c) => c[0] === camera)?.[1]}</span>}
               <span className="flex-1" />
               <span className="dim hidden md:inline">{p.base_model} · Ctrl+Enter</span>
             </div>

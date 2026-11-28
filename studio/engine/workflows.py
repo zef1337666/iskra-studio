@@ -3,7 +3,7 @@
 Каждая функция принимает параметры (dict) и режим 'draft' | 'quality', возвращает граф.
 Ускорения, заметно влияющие на качество, используются только в 'draft'.
 """
-import random
+import math, random
 from .graph import Graph
 
 KLEIN = {"draft": "flux3-image-klein-nvfp4.safetensors", "quality": "flux3-image-klein-int8-convrot.safetensors"}
@@ -354,31 +354,39 @@ def wan22_video(p, mode="quality"):
         w, h = h, w
     if p.get("width"):
         w, h = _size(p)
-    frames = int(round(float(p.get("seconds", 5)) * 16)) // 4 * 4 + 1
+    seconds = min(float(p.get("seconds", 5)), MAX_VIDEO_SEC)
+    two = len(p["images"]) > 1  # первый + последний кадр — одним куском
+    n = 1 if two else max(1, math.ceil(seconds / WAN_SEG_SEC - 1e-6))  # длиннее 5 с — продолжение по последнему кадру
+    frames = int(round(seconds / n * 16)) // 4 * 4 + 1
     clip = g.add("CLIPLoader", "UMT5", clip_name="umt5_xxl_fp8_e4m3fn_scaled.safetensors", type="wan", device="default")
     vae = g.add("VAELoader", "VAE Wan", vae_name="wan_2.1_vae.safetensors")
     text = p["prompt"] + (", " + CAMERA_RU[p["camera"]] if p.get("camera") in CAMERA_RU else "")
     pos = g.add("CLIPTextEncode", "Промпт", clip=clip.out, text=text)
     neg = g.add("CLIPTextEncode", "Негатив", clip=clip.out, text=p.get("negative", WAN_NEG))
     start = g.add("LoadImage", "Первый кадр", image=p["images"][0]).out
-    if len(p["images"]) > 1:
-        end = g.add("LoadImage", "Последний кадр", image=p["images"][1]).out
-        cond = g.add("WanFirstLastFrameToVideo", "Первый + последний кадр", positive=pos.out, negative=neg.out, vae=vae.out,
-                     width=w, height=h, length=frames, batch_size=1, start_image=start, end_image=end)
-    else:
-        cond = g.add("WanImageToVideo", "Картинка → видео", positive=pos.out, negative=neg.out, vae=vae.out,
-                     width=w, height=h, length=frames, batch_size=1, start_image=start)
     hi = _wan_model(g, s["high"], s["loras_high"])
     lo = _wan_model(g, s["low"], s["loras_low"])
     steps = int(p.get("steps") or s.get("steps", {}).get(mode) or (4 if mode == "draft" else 8))
     half = steps // 2
-    k1 = g.add("KSamplerAdvanced", "Этап 1 (high)", model=hi, add_noise="enable", noise_seed=seed, steps=steps, cfg=1.0, sampler_name="euler",
-               scheduler="simple", positive=cond[0], negative=cond[1], latent_image=cond[2], start_at_step=0, end_at_step=half,
-               return_with_leftover_noise="enable")
-    k2 = g.add("KSamplerAdvanced", "Этап 2 (low)", model=lo, add_noise="disable", noise_seed=seed, steps=steps, cfg=1.0, sampler_name="euler",
-               scheduler="simple", positive=cond[0], negative=cond[1], latent_image=k1.out, start_at_step=half, end_at_step=10000,
-               return_with_leftover_noise="disable")
-    frames_img = g.add("VAEDecode", "Декодирование", samples=k2.out, vae=vae.out).out
+    frames_img = None
+    for k in range(n):
+        part = f"Часть {k + 1}: " if n > 1 else ""
+        if two:
+            end = g.add("LoadImage", "Последний кадр", image=p["images"][1]).out
+            cond = g.add("WanFirstLastFrameToVideo", "Первый + последний кадр", positive=pos.out, negative=neg.out, vae=vae.out,
+                         width=w, height=h, length=frames, batch_size=1, start_image=start, end_image=end)
+        else:
+            cond = g.add("WanImageToVideo", part + "картинка → видео", positive=pos.out, negative=neg.out, vae=vae.out,
+                         width=w, height=h, length=frames, batch_size=1, start_image=start)
+        k1 = g.add("KSamplerAdvanced", part + "этап 1 (high)", model=hi, add_noise="enable", noise_seed=seed + k, steps=steps, cfg=1.0, sampler_name="euler",
+                   scheduler="simple", positive=cond[0], negative=cond[1], latent_image=cond[2], start_at_step=0, end_at_step=half,
+                   return_with_leftover_noise="enable")
+        k2 = g.add("KSamplerAdvanced", part + "этап 2 (low)", model=lo, add_noise="disable", noise_seed=seed + k, steps=steps, cfg=1.0, sampler_name="euler",
+                   scheduler="simple", positive=cond[0], negative=cond[1], latent_image=k1.out, start_at_step=half, end_at_step=10000,
+                   return_with_leftover_noise="disable")
+        dec = g.add("VAEDecode", part + "декодирование", samples=k2.out, vae=vae.out).out
+        frames_img = dec if frames_img is None else _append_frames(g, frames_img, dec, frames, part)
+        start = g.add("ImageFromBatch", part + "последний кадр", image=dec, batch_index=-1, length=1).out
     fps = 16
     if p.get("smooth"):
         frames_img = _interpolate(g, frames_img, 2)
@@ -386,6 +394,17 @@ def wan22_video(p, mode="quality"):
     vid = g.add("CreateVideo", "Сборка видео", images=frames_img, fps=float(fps))
     g.add("SaveVideo", "Сохранить видео", video=vid.out, filename_prefix=p.get("prefix", "studio/video"), format="auto", codec="auto")
     return g.to_api()
+
+
+MAX_VIDEO_SEC = 30
+WAN_SEG_SEC = 5.0   # Wan 2.2 лучше всего держит ~5 с (81 кадр) за один проход
+H3_SEG_SEC = 8.0    # MiniMax-H3 — до 8 с за проход
+
+
+def _append_frames(g, frames, new, length, part):
+    """Склейка кусков: первый кадр нового куска совпадает с последним предыдущего — его убираем."""
+    tail = g.add("ImageFromBatch", part + "без повтора кадра", image=new, batch_index=1, length=max(1, length - 1)).out
+    return g.add("ImageBatch", part + "склейка", image1=frames, image2=tail).out
 
 
 def _interpolate(g, frames, mult):
@@ -408,24 +427,31 @@ def h3_video(p, mode="quality"):
     ar = float(p.get("aspect", 16 / 9))
     w = int((mp * 1024 * 1024 * ar) ** 0.5) // 32 * 32
     h = int(w / ar) // 32 * 32
-    x = max(5, round(float(p.get("seconds", 5)) * 24))
+    seconds = min(float(p.get("seconds", 5)), MAX_VIDEO_SEC)
+    imgs = p.get("images") or []
+    n = 1 if len(imgs) > 1 else max(1, math.ceil(seconds / H3_SEG_SEC - 1e-6))  # длиннее 8 с — продолжение по последнему кадру
+    x = max(5, round(seconds / n * 24))
     length = x + (5 - x % 17) % 17
     text = p["prompt"] + (", " + CAMERA_RU[p["camera"]] if p.get("camera") in CAMERA_RU else "")
-    extra = {}
-    imgs = p.get("images") or []
-    if imgs:
-        extra["first_frame"] = g.add("LoadImage", "Первый кадр", image=imgs[0]).out
-    if len(imgs) > 1:
-        extra["last_frame"] = g.add("LoadImage", "Последний кадр", image=imgs[1]).out
-    cond = g.add("MiniMaxH3ImageToVideo", "Подготовка", clip=clip.out, vae=vvae.out, prompt=text, width=w, height=h, length=length, **extra)
+    first = g.add("LoadImage", "Первый кадр", image=imgs[0]).out if imgs else None
     steps = int(p.get("steps") or (6 if mode == "draft" else 20))
     sch = g.add("BasicScheduler", "Шаги", model=unet, scheduler="simple", steps=steps, denoise=1.0)
     smp = g.add("KSamplerSelect", "Сэмплер", sampler_name="res_multistep")
-    noise = g.add("RandomNoise", "Шум", noise_seed=seed)
-    guider = g.add("BasicGuider", "Гайдер", model=unet, conditioning=cond[0])
-    out = g.add("SamplerCustomAdvanced", "Генерация", noise=noise.out, guider=guider.out, sampler=smp.out, sigmas=sch.out, latent_image=cond[1])
-    frames = g.add("VAEDecode", "Кадры", samples=out[0], vae=vvae.out).out
-    audio = g.add("VAEDecodeAudio", "Звук", samples=out[0], vae=avae.out).out
+    frames = audio = None
+    for k in range(n):
+        part = f"Часть {k + 1}: " if n > 1 else ""
+        extra = {"first_frame": first} if first is not None else {}
+        if len(imgs) > 1:
+            extra["last_frame"] = g.add("LoadImage", "Последний кадр", image=imgs[1]).out
+        cond = g.add("MiniMaxH3ImageToVideo", part + "подготовка", clip=clip.out, vae=vvae.out, prompt=text, width=w, height=h, length=length, **extra)
+        noise = g.add("RandomNoise", part + "шум", noise_seed=seed + k)
+        guider = g.add("BasicGuider", part + "гайдер", model=unet, conditioning=cond[0])
+        out = g.add("SamplerCustomAdvanced", part + "генерация", noise=noise.out, guider=guider.out, sampler=smp.out, sigmas=sch.out, latent_image=cond[1])
+        fr = g.add("VAEDecode", part + "кадры", samples=out[0], vae=vvae.out).out
+        au = g.add("VAEDecodeAudio", part + "звук", samples=out[0], vae=avae.out).out
+        frames = fr if frames is None else _append_frames(g, frames, fr, length, part)
+        audio = au if audio is None else g.add("AudioConcat", part + "склейка звука", audio1=audio, audio2=au, direction="after").out
+        first = g.add("ImageFromBatch", part + "последний кадр", image=fr, batch_index=-1, length=1).out
     vid = g.add("CreateVideo", "Сборка видео", images=frames, fps=24.0, audio=audio)
     g.add("SaveVideo", "Сохранить видео", video=vid.out, filename_prefix=p.get("prefix", "studio/h3"), format="auto", codec="auto")
     return g.to_api()

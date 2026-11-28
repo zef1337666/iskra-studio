@@ -294,6 +294,20 @@ def assist(body: dict):
     return r
 
 
+@app.post("/api/learn/correction")
+def learn_correction(body: dict):
+    """Пользователь не согласился с выбором ИИ («Вернуть» или сам сменил модель) — ИИ запомнит на будущее."""
+    from ..assistant import learning
+    learning.record_correction((body.get("text") or "").strip(), body.get("ai"), body.get("wanted"))
+    return learning.stats()
+
+
+@app.get("/api/learn/stats")
+def learn_stats():
+    from ..assistant import learning
+    return learning.stats()
+
+
 @app.post("/api/chat")
 def ai_chat(body: dict):
     """Чат с ИИ: ответ по-русски и 1–3 предложенных пресета с готовым описанием задачи."""
@@ -343,7 +357,7 @@ def assist_auto(body: dict):
         if t.lower() not in prompt.lower():
             prompt = f"{t}, {prompt}"
     return {**r, "prompt": prompt, "preset": pr["id"], "preset_name": pr.get("name"), "aspect": c["aspect"],
-            "reason": c["reason"] if not suggest else "", "loras": loras, "suggest": suggest}
+            "reason": c["reason"] if not suggest else "", "loras": loras, "suggest": suggest, "learned": c.get("learned", 0)}
 
 
 @app.post("/api/describe")
