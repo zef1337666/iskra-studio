@@ -27,3 +27,31 @@
 - {file: minimax_h3_turbo_8step_v1.2.safetensors, skip: true}
 - {file: wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors, skip: true}
 - {file: wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors, skip: true}
+# ---- Wan 2.2 T2V (18+ видео из текста). Пары high/low: в списке указывается high, low подставляется сам.
+- file: T2V_14b_HighNoise_v2.safetensors
+  low: T2V_14b_LowNoise_v2.safetensors
+  base: wan_t2v
+  weight: 0.8
+  label: DR34ML4Y (позы и действия)
+  when: explicit sex acts and positions — blowjob, double blowjob, missionary, cowgirl / reverse cowgirl, doggy style
+  keyword_triggers:
+    - {match: 'минет|отсос|сосёт|сосет|blow ?job|oral|deep ?throat', word: bl0wj0b}
+    - {match: 'двойн\w* минет|double (bj|blowjob)', word: d0ubl3_bj}
+    - {match: 'миссионер|missionary|на спине', word: m15510n4ry}
+    - {match: 'наездниц|сверху|cowgirl|riding', word: c0wg1rl}
+    - {match: 'раком|сзади|doggy', word: d0gg1e}
+- file: Wan2.2-High-MysticXXX-v2.safetensors
+  low: Wan2.2-Low-MysticXXX-v2.safetensors
+  base: wan_t2v
+  weight: 0.7
+  label: Mystic XXX (18+ анатомия)
+  when: any explicit nude or sex scene — improves realistic nude anatomy and explicit details
+- file: wan2.2_highnoise_cumshot_v.1.0.safetensors
+  low: wan2.2_lownoise_cumshot_v1.0.safetensors
+  base: wan_t2v
+  weight: 0.8
+  label: Финал (cumshot)
+  when: ONLY when the user asks for ejaculation / cumshot / facial / cum
+- {file: T2V_14b_LowNoise_v2.safetensors, skip: true}
+- {file: Wan2.2-Low-MysticXXX-v2.safetensors, skip: true}
+- {file: wan2.2_lownoise_cumshot_v1.0.safetensors, skip: true}

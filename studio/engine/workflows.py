@@ -396,6 +396,84 @@ def wan22_video(p, mode="quality"):
     return g.to_api()
 
 
+WAN_T2V_SETS = {
+    # 18+ «WAN 2.2 Enhanced NSFW» T2V (Civitai 2053259): ускорение Lightning уже встроено — свои Lightning-LoRA не добавлять
+    "nsfw_t2v": {"high": "wan2.2_T2V_fp8_HIGH(lightning edition).safetensors", "low": "wan2.2_T2V_fp8_LOW(lightning edition)_.safetensors",
+                 "steps": {"draft": 4, "quality": 8}, "continue_set": "nsfw_real"},
+}
+
+
+def _wan_lora_pairs(loras):
+    """LoRA для Wan 2.2 идут парами (high/low): по файлу high находим его пару low в config/loras.yaml."""
+    import yaml
+    from ..config import ROOT
+    try:
+        cat = {x["file"]: x for x in yaml.safe_load((ROOT / "config" / "loras.yaml").read_text(encoding="utf-8")) or []}
+    except Exception:
+        cat = {}
+    hi, lo = [], []
+    for name, w in loras or []:
+        hi.append([name, float(w)])
+        if cat.get(name, {}).get("low"):
+            lo.append([cat[name]["low"], float(w)])
+    return hi, lo
+
+
+def wan22_t2v(p, mode="quality"):
+    """Текст → видео на Wan 2.2 14B (high → low) с LoRA. Длиннее 5 с — продолжение по последнему кадру моделью «картинка → видео»."""
+    g = Graph()
+    seed = _seed(p)
+    s = WAN_T2V_SETS[p.get("set", "nsfw_t2v")]
+    ar = float(p.get("aspect", 16 / 9))
+    mp = 0.4 if mode == "draft" else 0.59  # 832×480 / 1024×576 для 16:9
+    w = int((mp * 1024 * 1024 * ar) ** 0.5) // 16 * 16
+    h = int(w / ar) // 16 * 16
+    seconds = min(float(p.get("seconds", 5)), MAX_VIDEO_SEC)
+    n = max(1, math.ceil(seconds / WAN_SEG_SEC - 1e-6))
+    frames = int(round(seconds / n * 16)) // 4 * 4 + 1
+    steps = int(p.get("steps") or s["steps"][mode])
+    half = steps // 2
+    clip = g.add("CLIPLoader", "UMT5", clip_name="umt5_xxl_fp8_e4m3fn_scaled.safetensors", type="wan", device="default")
+    vae = g.add("VAELoader", "VAE Wan", vae_name="wan_2.1_vae.safetensors")
+    text = p["prompt"] + (", " + CAMERA_RU[p["camera"]] if p.get("camera") in CAMERA_RU else "")
+    pos = g.add("CLIPTextEncode", "Промпт", clip=clip.out, text=text)
+    neg = g.add("CLIPTextEncode", "Негатив", clip=clip.out, text=p.get("negative") or WAN_NEG)
+    lhi, llo = _wan_lora_pairs(p.get("loras"))
+    hi = _wan_model(g, s["high"], lhi)
+    lo = _wan_model(g, s["low"], llo)
+    lat = g.add("EmptyHunyuanLatentVideo", "Размер", width=w, height=h, length=frames, batch_size=1)
+
+    def sample(pos_c, neg_c, latent, hm, lm, k, part):
+        k1 = g.add("KSamplerAdvanced", part + "этап 1 (high)", model=hm, add_noise="enable", noise_seed=seed + k, steps=steps, cfg=1.0,
+                   sampler_name="euler", scheduler="simple", positive=pos_c, negative=neg_c, latent_image=latent, start_at_step=0,
+                   end_at_step=half, return_with_leftover_noise="enable")
+        k2 = g.add("KSamplerAdvanced", part + "этап 2 (low)", model=lm, add_noise="disable", noise_seed=seed + k, steps=steps, cfg=1.0,
+                   sampler_name="euler", scheduler="simple", positive=pos_c, negative=neg_c, latent_image=k1.out, start_at_step=half,
+                   end_at_step=10000, return_with_leftover_noise="disable")
+        return g.add("VAEDecode", part + "декодирование", samples=k2.out, vae=vae.out).out
+
+    part = "Часть 1: " if n > 1 else ""
+    frames_img = sample(pos.out, neg.out, lat.out, hi, lo, 0, part)
+    if n > 1:  # продолжение — 18+ модель «картинка → видео» от последнего кадра (с теми же LoRA, если они есть и для неё)
+        cs = WAN_SETS[s["continue_set"]]
+        ihi, ilo = _wan_model(g, cs["high"], cs["loras_high"]), _wan_model(g, cs["low"], cs["loras_low"])
+        start = g.add("ImageFromBatch", part + "последний кадр", image=frames_img, batch_index=-1, length=1).out
+        for k in range(1, n):
+            part = f"Часть {k + 1}: "
+            cond = g.add("WanImageToVideo", part + "продолжение", positive=pos.out, negative=neg.out, vae=vae.out, width=w, height=h,
+                         length=frames, batch_size=1, start_image=start)
+            dec = sample(cond[0], cond[1], cond[2], ihi, ilo, k, part)
+            frames_img = _append_frames(g, frames_img, dec, frames, part)
+            start = g.add("ImageFromBatch", part + "последний кадр", image=dec, batch_index=-1, length=1).out
+    fps = 16
+    if p.get("smooth"):
+        frames_img = _interpolate(g, frames_img, 2)
+        fps = 32
+    vid = g.add("CreateVideo", "Сборка видео", images=frames_img, fps=float(fps))
+    g.add("SaveVideo", "Сохранить видео", video=vid.out, filename_prefix=p.get("prefix", "nsfw/t2v"), format="auto", codec="auto")
+    return g.to_api()
+
+
 MAX_VIDEO_SEC = 30
 WAN_SEG_SEC = 5.0   # Wan 2.2 лучше всего держит ~5 с (81 кадр) за один проход
 H3_SEG_SEC = 8.0    # MiniMax-H3 — до 8 с за проход
@@ -631,6 +709,7 @@ REGISTRY = {
     "video_enhance": video_enhance,
     "video_audio": video_audio,
     "wan22_video": wan22_video,
+    "wan22_t2v": wan22_t2v,
     "h3_video": h3_video,
     "upscale": upscale,
     "remove_bg": remove_bg,

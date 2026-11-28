@@ -349,9 +349,10 @@ def assist_auto(body: dict):
         refusal = safety.check_request(text, True)
         if refusal:
             err(refusal)
-    loras, triggers = router.lora_params(pr, c["loras"])
+    loras, triggers = router.lora_params(pr, c["loras"], text)
     r = assist({"preset": pr["id"], "text": text, "images": imgs, "aspect": c["aspect"], "mode": "improve",
-                "reference": imgs[0] if imgs and not pr.get("requires") else None})
+                # оживление фото / перенос: ИИ получает описание исходной картинки — иначе выдумывает внешность (цвет волос и т.п.)
+                "reference": imgs[0] if imgs and (not pr.get("requires") or pr.get("media") == "video") else None})
     prompt = r.get("prompt") or text
     for t in triggers:
         if t.lower() not in prompt.lower():

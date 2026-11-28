@@ -49,7 +49,7 @@ def _parse(text):
 # ---------------------------------------------------------------- официальные инструкции разработчиков моделей
 OFFICIAL_BY_WORKFLOW = {"klein_t2i": "official_klein", "zimage_control": "official_klein", "klein_edit": "official_klein_edit",
                         "klein_outpaint": "official_klein_edit", "detailer": "official_klein_edit", "krea2_t2i": "official_krea2",
-                        "h3_video": "official_h3", "wan22_video": "official_wan"}
+                        "h3_video": "official_h3", "wan22_video": "official_wan", "wan22_t2v": "official_wan_t2v"}
 NSFW_NOTE = ("\n\nThis is a private adult (18+) preset on the user's own computer: explicit content between consenting fictional adults "
              "is allowed — describe it plainly and concretely, without euphemisms. Everyone is a young adult around 22 to 28 years old. "
              "Never describe anyone as childlike, a teen or a minor, and do not use words like 'teen', 'youthful', 'girl' when they could be "
@@ -87,7 +87,7 @@ def generate_official(user_text, workflow, mode="improve", nsfw=False, aspect=No
         msg += f"\nStyle: {style_hint}"
     if reference:
         msg += f"\nReference image description to follow: {reference}"
-    if tpl in ("official_h3", "official_wan"):
+    if tpl in ("official_h3", "official_wan", "official_wan_t2v"):
         msg += f"\nDuration: {seconds or 5} seconds." + (f" Camera: {camera}." if camera else "")
     if mode == "variants":
         system += "\n\nWrite FIVE clearly different captions for this request (different composition, lighting, setting or interpretation). Separate them with a line containing only ---"

@@ -1,0 +1,15 @@
+id: video18-t2v
+name: Видео 18+ из текста
+group: 18+
+order: 5
+nsfw: true
+media: video
+workflow: wan22_t2v
+assistant: video18
+base_model: Wan 2.2 Enhanced NSFW T2V (18+)
+params:
+  set: nsfw_t2v
+eta:
+  draft: 150
+  quality: 330
+description: 'Лучшая 18+ видеомодель из текста (Wan 2.2 Enhanced NSFW) с LoRA под позы и действия — ИИ подбирает их сам. Без звука.'

@@ -8,7 +8,8 @@ from . import learning, prompter
 SKIP = {"inpaint", "outpaint"}  # нужна ручная подготовка в интерфейсе (маска, поля)
 LORAS_DIR = ROOT / "models" / "loras"
 CATALOG = ROOT / "config" / "loras.yaml"
-BASE_BY_WORKFLOW = {"krea2_t2i": "krea2", "krea2_identity": "krea2", "klein_t2i": "klein", "klein_edit": "klein", "sdxl_t2i": "sdxl"}
+BASE_BY_WORKFLOW = {"krea2_t2i": "krea2", "krea2_identity": "krea2", "klein_t2i": "klein", "klein_edit": "klein", "sdxl_t2i": "sdxl",
+                    "wan22_t2v": "wan_t2v"}
 
 SYSTEM = """You route a request from a user of a local AI image/video studio to the single best preset, and pick add-on LoRAs.
 The user writes in Russian, in their own words, often vaguely. Read the preset descriptions and pick the one that best fits what they want to GET.
@@ -37,6 +38,8 @@ def _header_meta(path):
 
 def _norm_base(s):
     s = (s or "").lower().replace(" ", "")
+    if "wan" in s and "t2v" in s:
+        return "wan_t2v"
     return "krea2" if "krea2" in s else "klein" if ("klein" in s or "flux.3" in s or "flux3" in s) else \
         "sdxl" if any(k in s for k in ("sdxl", "illustrious", "pony", "noobai")) else None
 
@@ -65,7 +68,7 @@ def lora_catalog():
                 c["trigger"] = meta["trained_words"][0]
         if c.get("base"):
             out[f.name] = {"base": c["base"], "weight": float(c.get("weight", 0.8)), "trigger": c.get("trigger"),
-                           "label": c.get("label") or f.stem, "when": c["when"]}
+                           "label": c.get("label") or f.stem, "when": c["when"], "keyword_triggers": c.get("keyword_triggers") or []}
     return out
 
 
@@ -117,13 +120,17 @@ def choose(text, cands, n_images=0, nsfw=False, ref_kind=None):
             "reason": (out.get("reason_ru") or "").strip(), "loras": loras, "learned": n_learned}
 
 
-def lora_params(p, files):
-    """LoRA для запроса генерации (заменяют LoRA пресета) + слова-триггеры для промпта."""
+def lora_params(p, files, text=""):
+    """LoRA для запроса генерации (заменяют LoRA пресета) + слова-триггеры для промпта.
+    keyword_triggers — триггер зависит от того, что просят (у LoRA «всё в одном» своё слово на каждую позу)."""
+    import re
     cat = lora_catalog()
     ok = set(preset_loras(p, cat))
     files = [f for f in files if f in ok]
-    return ([{"name": f, "weight": cat[f]["weight"], "label": cat[f]["label"]} for f in files],
-            [cat[f]["trigger"] for f in files if cat[f].get("trigger")])
+    trig = [cat[f]["trigger"] for f in files if cat[f].get("trigger")]
+    for f in files:
+        trig += [k["word"] for k in cat[f]["keyword_triggers"] if re.search(k["match"], text or "", re.I)]
+    return [{"name": f, "weight": cat[f]["weight"], "label": cat[f]["label"]} for f in files], list(dict.fromkeys(trig))
 
 
 def candidates(all_presets, images, ref_kind, allow_nsfw):
