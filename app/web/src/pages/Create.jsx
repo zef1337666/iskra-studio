@@ -219,11 +219,18 @@ export default function Create() {
     setAiNote({ name: r.preset_name, reason: r.reason, loras: r.loras || [], suggest: r.suggest, prompt: r.prompt });
     return { r, pr: presets.find((x) => x.id === r.preset) || p };
   };
-  const aiAssist = async (opts) => {
+  // кнопка «ИИ»: всегда сама выбирает оптимальную модель (фото, видео, правка…) и включает «Авто»;
+  // если до этого модель была выбрана вручную и ИИ выбрал другую — можно «Вернуть» свою (force)
+  const aiAssist = async (opts = {}) => {
     setMenu(false);
     if (!draft.text.trim()) { toast("Напишите своими словами, что хотите получить", "info"); ta.current?.focus(); return; }
+    const prev = !autoMode && !opts.force ? { id: p.id, name: p.name } : null;
     setBusy("auto"); setVariants(null);
-    try { await runAuto(opts); } catch (e) { toast(e.message, "error"); }
+    try {
+      const { r } = await runAuto({ keep: false, ...opts });
+      setDraft({ auto: !opts.force });
+      if (prev && r.preset !== prev.id) setAiNote((n) => ({ ...n, prev }));
+    } catch (e) { toast(e.message, "error"); }
     setBusy(null);
   };
 
@@ -255,6 +262,12 @@ export default function Create() {
   const create = async (textOver, presetOver) => {
     // «Авто»: если ИИ ещё не обработал этот текст — сначала он выбирает модель, LoRA и пишет промпт, потом сразу генерация
     if (autoMode && !presetOver && textOver === undefined && draft.text.trim() && aiNote?.prompt !== draft.text) return autoCreate(draft.text);
+    // ручной режим, но просят видео, а выбрана фото-модель — ИИ сам выбирает видеомодель (свою можно «Вернуть»)
+    if (!autoMode && !presetOver && textOver === undefined && (p.media || "image") === "image" && aiNote?.prompt !== draft.text
+        && /(видео|ролик|оживи|анимаци|клип|video|animate)/i.test(draft.text)) {
+      const prev = { id: p.id, name: p.name };
+      await autoCreate(draft.text); setDraft({ auto: true }); setAiNote((n) => n && n.name !== prev.name ? { ...n, prev } : n); return;
+    }
     const text = (textOver ?? draft.text).trim();
     const preset = presetOver ? presets.find((x) => x.id === presetOver) : p;
     if (!preset) return;
@@ -358,7 +371,10 @@ export default function Create() {
               </div></>}
             {aiNote && <div className="flex items-center gap-2 px-3 pt-1 pb-1.5 text-xs" style={{ color: "var(--color-accent-hi)" }}>
               <Wand2 size={12} className="shrink-0" />
-              {aiNote.suggest
+              {aiNote.prev
+                ? <><span className="truncate">ИИ выбрал «{aiNote.name}» вместо «{aiNote.prev.name}»{aiNote.reason ? ` — ${aiNote.reason}` : ""}</span>
+                    <button className="chip !h-6 !text-xs shrink-0" onClick={() => aiAssist({ force: aiNote.prev.id, text: original ?? draft.text })} disabled={!!busy}>Вернуть «{aiNote.prev.name}»</button></>
+                : aiNote.suggest
                 ? <><span className="truncate">Промпт написан для «{aiNote.name}», но для этой задачи лучше подойдёт «{aiNote.suggest.name}»{aiNote.suggest.reason ? ` — ${aiNote.suggest.reason}` : ""}</span>
                     <button className="chip !h-6 !text-xs shrink-0" onClick={() => aiAssist({ keep: false, force: aiNote.suggest.preset })} disabled={!!busy}>Переключить</button></>
                 : <span className="truncate">ИИ: «{aiNote.name}»{aiNote.loras?.length ? ` + LoRA ${aiNote.loras.map((l) => l.label).join(", ")}` : ""}{aiNote.reason ? ` — ${aiNote.reason}` : ""}</span>}
