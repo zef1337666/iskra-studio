@@ -431,7 +431,8 @@ def h3_video(p, mode="quality"):
     imgs = p.get("images") or []
     n = 1 if len(imgs) > 1 else max(1, math.ceil(seconds / H3_SEG_SEC - 1e-6))  # длиннее 8 с — продолжение по последнему кадру
     x = max(5, round(seconds / n * 24))
-    length = x + (5 - x % 17) % 17
+    lo = x - (x - 5) % 17  # H3 принимает длину вида 17k+5 кадров — берём ближайшую, а не всегда большую
+    length = lo if lo >= 5 and x - lo <= 8 else lo + 17
     text = p["prompt"] + (", " + CAMERA_RU[p["camera"]] if p.get("camera") in CAMERA_RU else "")
     first = g.add("LoadImage", "Первый кадр", image=imgs[0]).out if imgs else None
     steps = int(p.get("steps") or (6 if mode == "draft" else 20))
